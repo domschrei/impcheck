@@ -36,7 +36,7 @@ struct u64_vec* buf_hints;
 
 void say(bool ok) {
     trusted_utils_write_char(ok ? TRUSTED_CHK_RES_ACCEPT : TRUSTED_CHK_RES_ERROR, output);
-#if PARLRAT_FLUSH_ALWAYS
+#if IMPCHECK_FLUSH_ALWAYS
     UNLOCKED_IO(fflush)(output);
 #endif
 }
@@ -99,7 +99,7 @@ int tc_run() {
             // respond
             say(res);
             if (share) trusted_utils_write_sig(buf_sig, output);
-#if PARLRAT_FLUSH_ALWAYS
+#if IMPCHECK_FLUSH_ALWAYS
             UNLOCKED_IO(fflush)(output);
 #endif
             nb_produced++;

@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#if PARLRAT_WRITE_DIRECTIVES
+#if IMPCHECK_WRITE_DIRECTIVES
 FILE* f_writer;
 
 void writer_init(char* output_path) {
@@ -12,28 +12,28 @@ void writer_init(char* output_path) {
 }
 
 void write_bool(bool b) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_bool(b, f_writer);
 #else
     fprintf(f_writer, "%i ", b ? 1 : 0);
 #endif
 }
 void write_char(int c_int) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_char(c_int, f_writer);
 #else
     fprintf(f_writer, "\n%c ", c_int);
 #endif
 }
 void write_int(int i) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_int(i, f_writer);
 #else
     fprintf(f_writer, "%i ", i);
 #endif
 }
 void write_ints(int* data, u64 nb_ints) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_ints(data, nb_ints, f_writer);
 #else
     for (u64 i = 0; i < nb_ints; i++)
@@ -41,14 +41,14 @@ void write_ints(int* data, u64 nb_ints) {
 #endif
 }
 void write_ul(u64 ul) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_ul(ul, f_writer);
 #else
     fprintf(f_writer, "%lu ", ul);
 #endif
 }
 void write_uls(u64* data, u64 nb_uls) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_uls(data, nb_uls, f_writer);
 #else
     for (u64 i = 0; i < nb_uls; i++)
@@ -56,7 +56,7 @@ void write_uls(u64* data, u64 nb_uls) {
 #endif
 }
 void write_sig(u8* sig) {
-#if PARLRAT_WRITE_DIRECTIVES == 1
+#if IMPCHECK_WRITE_DIRECTIVES == 1
     trusted_utils_write_sig(sig, f_writer);
 #else
     char out[SIG_SIZE_BYTES*2 + 1];

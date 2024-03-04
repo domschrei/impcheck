@@ -1,13 +1,13 @@
 
 cmake_minimum_required(VERSION 3.11.4)
-project (parlrat_trusted_modules)
+project (impcheck_trusted_modules)
 
 add_definitions("-std=gnu99 -Wall -Wextra -Werror -pedantic-errors -flto -g")
-if(PARLRAT_WRITE_DIRECTIVES)
-    add_definitions("-DPARLRAT_WRITE_DIRECTIVES=${PARLRAT_WRITE_DIRECTIVES}")
+if(IMPCHECK_WRITE_DIRECTIVES)
+    add_definitions("-DIMPCHECK_WRITE_DIRECTIVES=${IMPCHECK_WRITE_DIRECTIVES}")
 endif()
-if(PARLRAT_FLUSH_ALWAYS)
-    add_definitions("-DPARLRAT_FLUSH_ALWAYS=${PARLRAT_FLUSH_ALWAYS}")
+if(IMPCHECK_FLUSH_ALWAYS)
+    add_definitions("-DIMPCHECK_FLUSH_ALWAYS=${IMPCHECK_FLUSH_ALWAYS}")
 endif()
 
 add_executable(trusted_parser_process

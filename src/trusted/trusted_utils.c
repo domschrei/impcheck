@@ -1,6 +1,6 @@
 
 #include "trusted_utils.h"
-#if PARLRAT_WRITE_DIRECTIVES
+#if IMPCHECK_WRITE_DIRECTIVES
 #include "../writer.h"
 #endif
 #include <stdio.h>
@@ -65,7 +65,7 @@ void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj) {
 bool trusted_utils_read_bool(FILE* file) {
     int res = UNLOCKED_IO(fgetc)(file);
     if (res == EOF) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_bool(res ? 1 : 0);
 #endif
     return res ? 1 : 0;
@@ -73,7 +73,7 @@ bool trusted_utils_read_bool(FILE* file) {
 int trusted_utils_read_char(FILE* file) {
     int res = UNLOCKED_IO(fgetc)(file);
     if (res == EOF) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_char(res);
 #endif
     return res;
@@ -82,7 +82,7 @@ int trusted_utils_read_int(FILE* file) {
     int i;
     u64 nb_read = UNLOCKED_IO(fread)(&i, sizeof(int), 1, file);
     if (nb_read < 1) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_int(i);
 #endif
     return i;
@@ -90,7 +90,7 @@ int trusted_utils_read_int(FILE* file) {
 void trusted_utils_read_ints(int* data, u64 nb_ints, FILE* file) {
     u64 nb_read = UNLOCKED_IO(fread)(data, sizeof(int), nb_ints, file);
     if (nb_read < nb_ints) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_ints(data, nb_ints);
 #endif
 }
@@ -98,7 +98,7 @@ u64 trusted_utils_read_ul(FILE* file) {
     u64 u;
     u64 nb_read = UNLOCKED_IO(fread)(&u, sizeof(u64), 1, file);
     if (nb_read < 1) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_ul(u);
 #endif
     return u;
@@ -106,7 +106,7 @@ u64 trusted_utils_read_ul(FILE* file) {
 void trusted_utils_read_uls(u64* data, u64 nb_uls, FILE* file) {
     u64 nb_read = UNLOCKED_IO(fread)(data, sizeof(u64), nb_uls, file);
     if (nb_read < 1) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_uls(data, nb_uls);
 #endif
 }
@@ -115,7 +115,7 @@ void trusted_utils_read_sig(u8* out_sig, FILE* file) {
     if (!out_sig) out_sig = dummy;
     u64 nb_read = UNLOCKED_IO(fread)(out_sig, sizeof(int), 4, file);
     if (nb_read < 4) trusted_utils_exit_eof();
-#ifdef PARLRAT_WRITE_DIRECTIVES
+#ifdef IMPCHECK_WRITE_DIRECTIVES
     write_sig(out_sig);
 #endif
 }
