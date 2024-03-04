@@ -3,6 +3,6 @@
 
 #include "trusted_utils.h"
 
-void init(const char* filename, FILE* out);
-bool parse();
-void end();
+void tp_init(const char* filename, FILE* out);
+bool tp_parse();
+void tp_end();

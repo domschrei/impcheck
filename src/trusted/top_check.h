@@ -10,5 +10,6 @@ bool top_check_produce(unsigned long id, const int* literals, int nb_literals,
 bool top_check_import(unsigned long id, const int* literals, int nb_literals,
     const u8* signature_data);
 bool top_check_delete(const unsigned long* ids, int nb_ids);
-bool top_check_validate(u8* out_signature_or_null);
+bool top_check_validate_unsat(u8* out_signature_or_null);
+bool top_check_validate_sat(int* model, u64 size, u8* out_signature_or_null);
 bool top_check_valid();

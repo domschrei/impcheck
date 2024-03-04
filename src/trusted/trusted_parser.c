@@ -6,6 +6,7 @@
 #include "siphash.h"        // for siphash_digest, siphash_init, siphash_update
 #include "trusted_utils.h"  // for trusted_utils_write_int, trusted_utils_wr...
 
+// Instantiate int_vec
 #define TYPE int
 #define TYPED(THING) int_ ## THING
 #include "vec.h"
@@ -34,7 +35,6 @@ int nb_cls = -1;
 void output_literal_buffer() {
     siphash_update((unsigned char*) data->data, data->size * sizeof(int));
     trusted_utils_write_ints(data->data, data->size, f_out);
-    //for (size_t i = 0; i < _datalen; i++) printf("PARSED %i\n", _data[i]);
     int_vec_clear(data);
 }
 
@@ -103,18 +103,18 @@ bool process(char c) {
 }
 
 
-void init(const char* filename, FILE* out) {
+void tp_init(const char* filename, FILE* out) {
     siphash_init(SECRET_KEY);
     f = fopen(filename, "r");
     f_out = out;
     data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
 }
 
-void end() {
+void tp_end() {
     free(data);
 }
 
-bool parse() {
+bool tp_parse() {
     while (true) {
         int c_int = UNLOCKED_IO(fgetc)(f);
         if (process((char) c_int)) break;

@@ -5,10 +5,10 @@
 #include "vec.h"
 
 struct TYPED(vec)* TYPED(vec_init)(u64 capacity) {
-    struct TYPED(vec)* vector = malloc(sizeof(struct TYPED(vec)));
+    struct TYPED(vec)* vector = trusted_utils_malloc(sizeof(struct TYPED(vec)));
     vector->size = 0;
     vector->capacity = capacity;
-    vector->data = calloc(capacity, sizeof(TYPE));
+    vector->data = trusted_utils_calloc(capacity, sizeof(TYPE));
     return vector;
 }
 
@@ -20,7 +20,7 @@ void TYPED(vec_free)(struct TYPED(vec)* vec) {
 
 void TYPED(vec_reserve)(struct TYPED(vec)* vec, u64 new_cap) {
     if (new_cap > vec->capacity) {
-        vec->data = (TYPE*) realloc(vec->data, new_cap * sizeof(TYPE));
+        vec->data = (TYPE*) trusted_utils_realloc(vec->data, new_cap * sizeof(TYPE));
         vec->capacity = new_cap;
     }
     if (vec->size > new_cap) vec->size = new_cap; // shrink

@@ -4,20 +4,23 @@
 #include "clause.h"         // for clause_free, clause_init
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "siphash.h"        // for siphash_digest, siphash_init, siphash_update
-#include "trusted_utils.h"  // for u64, trusted_utils_errmsg, MALLOB_UNLIKELY
+#include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
 
+// Instantiate int_vec
 #define TYPE int
 #define TYPED(THING) int_ ## THING
 #include "vec.h"
 #undef TYPED
 #undef TYPE
 
+// Instantiate u64_vec
 #define TYPE u64
 #define TYPED(THING) u64_ ## THING
 #include "vec.h"
 #undef TYPED
 #undef TYPE
 
+// Instantiate i8_vec
 #define TYPE signed char
 #define TYPED(THING) i8_ ## THING
 #include "vec.h"
@@ -32,6 +35,7 @@ struct i8_vec* var_values;
 bool unsat_proven = false;
 
 u64 id_to_add = 1;
+u64 nb_loaded_clauses = 0;
 struct int_vec* clause_to_add;
 bool done_loading = false;
 
@@ -62,7 +66,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
         int* cls = (int*) hash_table_find(clause_table, hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
-            snprintf(trusted_utils_errmsg, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
+            snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
             break;
         }
 
@@ -77,7 +81,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 // Literal is unassigned
                 if (MALLOB_UNLIKELY(new_unit != 0)) {
                     // ERROR - multiple unassigned literals in hint clause!
-                    snprintf(trusted_utils_errmsg, 512, "Derivation %lu: multiple literals unassigned", base_id);
+                    snprintf(trusted_utils_msgstr, 512, "Derivation %lu: multiple literals unassigned", base_id);
                     ok = false; break;
                 }
                 new_unit = lit;
@@ -87,7 +91,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             bool sign = var_values->data[var]>0;
             if (MALLOB_UNLIKELY(sign == (lit>0))) {
                 // ERROR - clause is satisfied, so it is not a correct hint
-                snprintf(trusted_utils_errmsg, 512, "Derivation %lu: dependency %lu is satisfied", base_id, hint_id);
+                snprintf(trusted_utils_msgstr, 512, "Derivation %lu: dependency %lu is satisfied", base_id, hint_id);
                 ok = false; break;
             }
             // All OK - literal is false, thus (virtually) removed from the clause
@@ -101,7 +105,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             // -> Empty clause derived.
             if (MALLOB_UNLIKELY(i+1 < nb_hints)) {
                 // ERROR - not at the final hint yet!
-                snprintf(trusted_utils_errmsg, 512, "Derivation %lu: empty clause produced at non-final hint %lu", base_id, hint_id);
+                snprintf(trusted_utils_msgstr, 512, "Derivation %lu: empty clause produced at non-final hint %lu", base_id, hint_id);
                 break;
             }
             // Final hint produced empty clause - everything OK!
@@ -118,8 +122,8 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     }
 
     // ERROR - something went wrong
-    if (trusted_utils_errmsg[0] == '\0')
-        snprintf(trusted_utils_errmsg, 512, "Derivation %lu: no empty clause was produced", base_id);
+    if (trusted_utils_msgstr[0] == '\0')
+        snprintf(trusted_utils_msgstr, 512, "Derivation %lu: no empty clause was produced", base_id);
     for (u64 i = 0; i < assigned_units->size; i++)
         var_values->data[assigned_units->data[i]] = 0; // reset variable values
     int_vec_clear(assigned_units);
@@ -134,7 +138,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
     int* cls = clause_init(lits, nb_lits);
     bool ok = hash_table_insert(clause_table, id, cls);
-    if (!ok) snprintf(trusted_utils_errmsg, 512, "Insertion of clause %lu unsuccessful - already present?", id);
+    if (!ok) snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
     else if (nb_lits == 0) unsat_proven = true; // added top-level empty clause!
     return ok;
 }
@@ -164,11 +168,12 @@ bool lrat_check_load(int lit) {
 
 bool lrat_check_end_load(u8** out_sig) {
     if (clause_to_add->size > 0) {
-        snprintf(trusted_utils_errmsg, 512, "literals left in unterminated clause");
+        snprintf(trusted_utils_msgstr, 512, "literals left in unterminated clause");
         return false;
     }
     *out_sig = siphash_digest();
     done_loading = true;
+    nb_loaded_clauses = id_to_add-1;
     return true;
 }
 
@@ -185,12 +190,16 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
         u64 id = ids[i];
         int* cls = hash_table_find(clause_table, id);
         if (!cls) {
-            snprintf(trusted_utils_errmsg, 512, "Clause deletion: ID %lu not found", id);
+            snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
+        }
+        if (id <= nb_loaded_clauses) {
+            // Do not delete original problem clauses to enable checking of a model
+            continue;
         }
         clause_free(cls);
         if (!hash_table_delete_last_found(clause_table)) {
-            snprintf(trusted_utils_errmsg, 512, "Clause deletion: Hash table error for ID %lu", id);
+            snprintf(trusted_utils_msgstr, 512, "Clause deletion: Hash table error for ID %lu", id);
             return false;
         }
     }
@@ -199,12 +208,67 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
 
 bool lrat_check_validate_unsat() {
     if (!done_loading) {
-        snprintf(trusted_utils_errmsg, 512, "UNSAT validation illegal - loading formula was not concluded");
+        snprintf(trusted_utils_msgstr, 512, "UNSAT validation illegal - loading formula was not concluded");
         return false;
     }
     if (!unsat_proven) {
-        snprintf(trusted_utils_errmsg, 512, "UNSAT validation unsuccessful - did not derive or import empty clause");
+        snprintf(trusted_utils_msgstr, 512, "UNSAT validation unsuccessful - did not derive or import empty clause");
         return false;
     }
+    return true;
+}
+
+bool lrat_check_validate_sat(int* model, u64 size) {
+
+    // Still loading the formula?
+    if (!done_loading) {
+        snprintf(trusted_utils_msgstr, 512, "SAT validation illegal - loading formula was not concluded");
+        return false;
+    }
+    // Check each original problem clause
+    for (u64 id = 1; id <= nb_loaded_clauses; id++) {
+        int* cls = (int*) hash_table_find(clause_table, id);
+        if (MALLOB_UNLIKELY(!cls)) {
+            // ERROR - clause not found
+            snprintf(trusted_utils_msgstr, 512, "SAT validation: original ID %lu not found", id);
+            return false;
+        }
+        // Iterate over the literals of the clause
+        bool satisfied = false;
+        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) {
+            int lit = cls[lit_idx];
+            int var = lit>0 ? lit : -lit;
+            if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
+                // ERROR - model does not cover this variable
+                snprintf(trusted_utils_msgstr, 512, "SAT validation: model does not cover variable %i", var);
+                return false;
+            }
+            // Is the literal satisfied in the model?
+            int modelLit = model[var-1];
+            if (MALLOB_UNLIKELY(modelLit != var && modelLit != -var && modelLit != 0)) {
+                // ERROR - clause not found
+                snprintf(trusted_utils_msgstr, 512, "SAT validation: unexpected literal %i in assignment of variable %i", modelLit, var);
+                return false;
+            }
+            if (modelLit == 0) {
+                // The value of this variable allegedly does not matter,
+                // so let us just assign the fitting value.
+                // If this leads to an error, it does matter, which means that the specified model is wrong.
+                modelLit = model[var-1] = lit;
+            }
+            if (modelLit == lit) {
+                // Literal satisfied under the model satisfies the clause
+                satisfied = true;
+                break;
+            }
+        }
+        // Clause NOT satisfied?
+        if (MALLOB_UNLIKELY(!satisfied)) {
+            // ERROR - unsatisfied clause(s) remain(s)
+            snprintf(trusted_utils_msgstr, 512, "SAT validation: original clause %lu not satisfied", id);
+            return false;
+        }
+    }
+    // All original problem clauses are satisfied – correct model!
     return true;
 }

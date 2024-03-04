@@ -2,7 +2,7 @@
 #include <stdbool.h>         // for bool
 #include <stdio.h>           // for fopen, FILE
 #include <stdlib.h>          // for abort
-#include "trusted_parser.h"  // for init, parse
+#include "trusted_parser.h"  // for tp_init, tp_parse
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 
 int main(int argc, char *argv[]) {
@@ -19,8 +19,8 @@ int main(int argc, char *argv[]) {
 
     // Parse
     FILE* source = fopen(fifo_parsed_formula, "w");
-    init(formula_input, source);
-    bool ok = parse();
+    tp_init(formula_input, source);
+    bool ok = tp_parse();
     if (!ok) abort();
     return 0;
 }

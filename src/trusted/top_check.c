@@ -42,7 +42,7 @@ bool top_check_end_load() {
     if (!valid) return false;
     // Check against provided signature
     valid = trusted_utils_equal_signatures(sig_from_chk, formula_signature);
-    if (!valid) snprintf(trusted_utils_errmsg, 512, "Formula signature check failed");
+    if (!valid) snprintf(trusted_utils_msgstr, 512, "Formula signature check failed");
     return valid;
 }
 
@@ -67,7 +67,7 @@ bool top_check_import(unsigned long id, const int* literals, int nb_literals,
     compute_clause_signature(id, literals, nb_literals, computed_sig);
     if (!trusted_utils_equal_signatures(signature_data, computed_sig)) {
         valid = false;
-        snprintf(trusted_utils_errmsg, 512, "Signature check of clause %lu failed", id);
+        snprintf(trusted_utils_msgstr, 512, "Signature check of clause %lu failed", id);
         return false;
     }
 
@@ -80,17 +80,27 @@ bool top_check_delete(const unsigned long* ids, int nb_ids) {
     return lrat_check_delete_clause(ids, nb_ids);
 }
 
-bool top_check_validate(u8* out_signature_or_null) {
+void write_confirming_signature(u8 constant, u8* out) {
+    siphash_reset();
+    siphash_update(formula_signature, SIG_SIZE_BYTES);
+    siphash_update(&constant, 1);
+    u8* sig = siphash_digest();
+    trusted_utils_copy_bytes(out, sig, SIG_SIZE_BYTES);
+}
+
+bool top_check_validate_unsat(u8* out_signature_or_null) {
     valid &= lrat_check_validate_unsat();
     if (!valid) return false;
-    if (out_signature_or_null) {
-        const u8 UNSAT = 20;
-        siphash_reset();
-        siphash_update(formula_signature, SIG_SIZE_BYTES);
-        siphash_update(&UNSAT, 1);
-        u8* sig = siphash_digest();
-        trusted_utils_copy_bytes(out_signature_or_null, sig, SIG_SIZE_BYTES);
-    }
+    if (out_signature_or_null)
+        write_confirming_signature(20, out_signature_or_null);
+    return true;
+}
+
+bool top_check_validate_sat(int* model, u64 size, u8* out_signature_or_null) {
+    valid &= lrat_check_validate_sat(model, size);
+    if (!valid) return false;
+    if (out_signature_or_null)
+        write_confirming_signature(10, out_signature_or_null);
     return true;
 }
 

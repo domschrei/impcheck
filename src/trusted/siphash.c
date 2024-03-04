@@ -1,8 +1,9 @@
 
 #include "siphash.h"
+#include "trusted_utils.h"
 #include <stdbool.h>  // for true
 #include <stdio.h>    // for printf
-#include <stdlib.h>   // for free, malloc, abort
+#include <stdlib.h>   // for free, abort
 
 #define cROUNDS 2
 #define dROUNDS 4
@@ -131,8 +132,8 @@ void process_final_block() {
 
 void siphash_init(const unsigned char* key_128bit) {
     kk = key_128bit;
-    out = malloc(128 / 8);
-    buf = malloc(8);
+    out = trusted_utils_malloc(128 / 8);
+    buf = trusted_utils_malloc(8);
     if (kk) siphash_reset();
 }
 void siphash_reset() {

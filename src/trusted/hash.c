@@ -1,7 +1,8 @@
 
 #include "hash.h"
+#include "trusted_utils.h"
 #include <assert.h>  // for assert
-#include <stdlib.h>  // for calloc, free, malloc
+#include <stdlib.h>  // for free
 
 u64 compute_hash(u64 key) {
     return (0xcbf29ce484222325UL ^ key) * 0x00000100000001B3UL;
@@ -46,7 +47,7 @@ bool realloc_table(struct hash_table* ht) {
     //printf("GROW %lu -> %lu\n", ht->capacity, new_capacity);
     struct hash_table_entry* old_data = ht->data;
     u64 old_capacity = ht->capacity;
-    ht->data = (struct hash_table_entry*) calloc(new_capacity, sizeof(struct hash_table_entry));
+    ht->data = (struct hash_table_entry*) trusted_utils_calloc(new_capacity, sizeof(struct hash_table_entry));
     if (!ht->data) return false;
     ht->size = 0;
     ht->max_size = (u64) (ht->growth_factor * ht->max_size);
@@ -106,12 +107,12 @@ bool handle_gap(struct hash_table* ht, u64 idx_of_gap) {
 
 
 struct hash_table* hash_table_init(int log_init_capacity) {
-    struct hash_table* ht = (struct hash_table*) malloc(sizeof(struct hash_table));
+    struct hash_table* ht = trusted_utils_malloc(sizeof(struct hash_table));
     ht->capacity = 1<<log_init_capacity;
     ht->size = 0;
     ht->max_size = (u64) (ht->capacity >> 1);
     ht->growth_factor = 2;
-    ht->data = (struct hash_table_entry*) calloc(ht->capacity, sizeof(struct hash_table_entry));
+    ht->data = (struct hash_table_entry*) trusted_utils_calloc(ht->capacity, sizeof(struct hash_table_entry));
     return ht;
 }
 

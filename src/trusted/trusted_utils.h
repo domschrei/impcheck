@@ -27,7 +27,7 @@ typedef unsigned char u8;
 typedef u8 signature[SIG_SIZE_BYTES];
 #define TRUSTED_CHK_MAX_BUF_SIZE (1<<14)
 
-extern char trusted_utils_errmsg[512];
+extern char trusted_utils_msgstr[512];
 
 void trusted_utils_log(const char* msg);
 void trusted_utils_log_err(const char* msg);
@@ -38,6 +38,10 @@ bool trusted_utils_begins_with(const char* str, const char* prefix);
 
 void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes);
 bool trusted_utils_equal_signatures(const u8* left, const u8* right);
+
+void* trusted_utils_malloc(u64 size);
+void* trusted_utils_realloc(void* from, u64 new_size);
+void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj);
 
 bool trusted_utils_read_bool(FILE* file);
 int trusted_utils_read_char(FILE* file);
@@ -52,6 +56,6 @@ void trusted_utils_write_char(char c, FILE* file);
 void trusted_utils_write_int(int i, FILE* file);
 void trusted_utils_write_ints(const int* data, u64 nb_ints, FILE* file);
 void trusted_utils_write_ul(u64 u, FILE* file);
-void trusted_utils_write_uls(u64* data, u64 nb_uls, FILE* file);
+void trusted_utils_write_uls(const u64* data, u64 nb_uls, FILE* file);
 void trusted_utils_write_sig(const u8* sig, FILE* file);
 

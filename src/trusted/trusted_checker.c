@@ -5,65 +5,21 @@
 #include <time.h>           // for clock, CLOCKS_PER_SEC, clock_t
 #include "top_check.h"      // for top_check_commit_formula_sig, top_check_d...
 #include "trusted_utils.h"  // for trusted_utils_read_int, trusted_utils_log...
+#include "checker_interface.h"
 
+// Instantiate int_vec
 #define TYPE int
 #define TYPED(THING) int_ ## THING
 #include "vec.h"
 #undef TYPED
 #undef TYPE
 
+// Instantiate u64_vec
 #define TYPE u64
 #define TYPED(THING) u64_ ## THING
 #include "vec.h"
 #undef TYPED
 #undef TYPE
-
-// Initialize and begin the loading stage.
-// IN: #vars (int); 128-bit signature of the formula (from trusted parser)
-// OUT: OK
-#define TRUSTED_CHK_INIT 'B'
-
-// Load a chunk of the original problem formula.
-// IN: int k; sequence of k literals.
-// OUT: (void)
-#define TRUSTED_CHK_LOAD 'L'
-
-// End the loading stage; verify the signature.
-// IN: (void)
-// OUT: OK
-#define TRUSTED_CHK_END_LOAD 'E'
-
-// Add the derivation of a new, local clause.
-// IN: 64-bit ID; int k; sequence of k literals;
-//     int l; sequence of l 64-bit hints;
-//     "share" char (0|1) indicating whether to return a signature.
-// OUT: OK; 128-bit signature only if "share"
-#define TRUSTED_CHK_CLS_PRODUCE 'a'
-
-// Import a clause from another solver.
-// IN: 64-bit ID; int k; sequence of k literals; 128-bit signature.
-// OUT: OK
-#define TRUSTED_CHK_CLS_IMPORT 'i'
-
-// Delete a sequence of clauses.
-// IN: int k; sequence of k 64-bit IDs.
-// OUT: OK
-#define TRUSTED_CHK_CLS_DELETE 'd'
-
-// Confirm that the formula is proven unsatisfiable.
-// IN: (none)
-// OUT: OK
-#define TRUSTED_CHK_VALIDATE 'V'
-
-// Terminate.
-// IN: (none)
-// OUT: OK
-#define TRUSTED_CHK_TERMINATE 'T'
-
-// Checker answer that everything is OK
-#define TRUSTED_CHK_RES_ACCEPT 'A'
-// Checker answer that an error occurred
-#define TRUSTED_CHK_RES_ERROR 'E'
 
 FILE* input; // named pipe
 FILE* output; // named pipe
@@ -80,6 +36,9 @@ struct u64_vec* buf_hints;
 
 void say(bool ok) {
     trusted_utils_write_char(ok ? TRUSTED_CHK_RES_ACCEPT : TRUSTED_CHK_RES_ERROR, output);
+#if PARLRAT_FLUSH_ALWAYS
+    UNLOCKED_IO(fflush)(output);
+#endif
 }
 void say_with_flush(bool ok) {
     say(ok);
@@ -100,7 +59,7 @@ void read_hints(int nb_hints) {
     trusted_utils_read_uls(buf_hints->data, nb_hints, input);
 }
 
-void init(const char* fifo_in, const char* fifo_out) {
+void tc_init(const char* fifo_in, const char* fifo_out) {
     input = fopen(fifo_in, "r");
     if (!input) trusted_utils_exit_eof();
     output = fopen(fifo_out, "w");
@@ -109,44 +68,23 @@ void init(const char* fifo_in, const char* fifo_out) {
     buf_hints = u64_vec_init(1 << 14);
 }
 
-void end() {
+void tc_end() {
     free(buf_hints);
     free(buf_lits);
     fclose(output);
     fclose(input);
 }
 
-int run() {
+int tc_run() {
     clock_t start = clock();
 
-    u64 nb_produced = 0;
-    u64 nb_imported = 0;
-    u64 nb_deleted = 0;
+    u64 nb_produced = 0, nb_imported = 0, nb_deleted = 0;
 
     bool reported_error = false;
 
     while (true) {
         int c = trusted_utils_read_char(input);
-        if (c == TRUSTED_CHK_INIT) {
-
-            nb_vars = trusted_utils_read_int(input);
-            top_check_init(nb_vars);
-            trusted_utils_read_sig(formula_sig, input);
-            top_check_commit_formula_sig(formula_sig);
-            say_with_flush(true);
-
-        } else if (c == TRUSTED_CHK_LOAD) {
-
-            const int nb_lits = trusted_utils_read_int(input);
-            read_literals(nb_lits);
-            for (int i = 0; i < nb_lits; i++) top_check_load(buf_lits->data[i]);
-            // NO FEEDBACK
-
-        } else if (c == TRUSTED_CHK_END_LOAD) {
-
-            say_with_flush(top_check_end_load());
-
-        } else if (c == TRUSTED_CHK_CLS_PRODUCE) {
+        if (c == TRUSTED_CHK_CLS_PRODUCE) {
 
             // parse
             const u64 id = read_id();
@@ -161,6 +99,9 @@ int run() {
             // respond
             say(res);
             if (share) trusted_utils_write_sig(buf_sig, output);
+#if PARLRAT_FLUSH_ALWAYS
+            UNLOCKED_IO(fflush)(output);
+#endif
             nb_produced++;
 
         } else if (c == TRUSTED_CHK_CLS_IMPORT) {
@@ -187,13 +128,44 @@ int run() {
             say(res);
             nb_deleted++;
 
-        } else if (c == TRUSTED_CHK_VALIDATE) {
+        } else if (c == TRUSTED_CHK_LOAD) {
 
-            bool res = top_check_validate(buf_sig);
+            const int nb_lits = trusted_utils_read_int(input);
+            read_literals(nb_lits);
+            for (int i = 0; i < nb_lits; i++) top_check_load(buf_lits->data[i]);
+            // NO FEEDBACK
+
+        } else if (c == TRUSTED_CHK_INIT) {
+
+            nb_vars = trusted_utils_read_int(input);
+            top_check_init(nb_vars);
+            trusted_utils_read_sig(formula_sig, input);
+            top_check_commit_formula_sig(formula_sig);
+            say_with_flush(true);
+
+        } else if (c == TRUSTED_CHK_END_LOAD) {
+
+            say_with_flush(top_check_end_load());
+
+        } else if (c == TRUSTED_CHK_VALIDATE_UNSAT) {
+
+            bool res = top_check_validate_unsat(buf_sig);
             say(res);
             trusted_utils_write_sig(buf_sig, output);
             UNLOCKED_IO(fflush)(output);
             if (res) trusted_utils_log("UNSAT validated");
+
+        } else if (c == TRUSTED_CHK_VALIDATE_SAT) {
+
+            const int model_size = trusted_utils_read_int(input);
+            int* model = trusted_utils_malloc(sizeof(int) * model_size); // exits if error
+            trusted_utils_read_ints(model, model_size, input);
+            bool res = top_check_validate_sat(model, model_size, buf_sig);
+            say(res);
+            trusted_utils_write_sig(buf_sig, output);
+            UNLOCKED_IO(fflush)(output);
+            if (res) trusted_utils_log("SAT validated");
+            free(model);
 
         } else if (c == TRUSTED_CHK_TERMINATE) {
 
@@ -207,7 +179,7 @@ int run() {
 
         if (MALLOB_UNLIKELY(!top_check_valid())) {
             if (!reported_error) {
-                trusted_utils_log_err(trusted_utils_errmsg);
+                trusted_utils_log_err(trusted_utils_msgstr);
                 reported_error = true;
             }
         }

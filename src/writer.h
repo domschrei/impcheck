@@ -3,7 +3,7 @@
 
 #include "trusted/trusted_utils.h"
 
-#if WRITE_DIRECTIVES
+#if PARLRAT_WRITE_DIRECTIVES
 void writer_init(char* output_path);
 void write_bool(bool b);
 void write_char(int c_int);

@@ -5,7 +5,7 @@
 
 #include "trusted_utils.h"
 #include "trusted_checker.h"
-#if WRITE_DIRECTIVES
+#if PARLRAT_WRITE_DIRECTIVES
 #include "../writer.h"
 #endif
 
@@ -23,14 +23,14 @@ int main(int argc, char *argv[]) {
             fifo_feedback = argv[i] + (sizeof(opt_feedback)-1);
     }
 
-#if WRITE_DIRECTIVES
+#if PARLRAT_WRITE_DIRECTIVES
     char output_path[512];
     snprintf(output_path, 512, "directives.%i.parlrat", getpid());
     writer_init(output_path);
 #endif
 
-    init(fifo_directives, fifo_feedback);
-    int res = run();
+    tc_init(fifo_directives, fifo_feedback);
+    int res = tc_run();
     fflush(stdout);
     return res;
 }

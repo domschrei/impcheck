@@ -1,19 +1,6 @@
 
+#include "test.h"
 #include "../src/trusted/hash.h"
-
-#include <assert.h>
-#include <stdlib.h>
-
-void do_assert(bool cond) {
-#ifndef NDEBUG
-    assert(cond);
-#else
-    if (!cond) {
-        printf("Assertion failed! Compile with DEBUG mode for details.\n");
-        abort();
-    }
-#endif
-}
 
 void test_small() {
 
