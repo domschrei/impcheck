@@ -71,7 +71,7 @@ u64 setup(const char* cnfInput, FILE** f_directives_out, FILE** f_feedback_out) 
     // Fork off a parser process.
     if (do_fork()) {
         // child: parser process
-        snprintf(charbuf, 1024, "build/trusted_parser_process -formula-input=%s -fifo-parsed-formula=%s",
+        snprintf(charbuf, 1024, "build/impcheck_parse -formula-input=%s -fifo-parsed-formula=%s",
             cnfInput, pipeParsed);
         int res = system(charbuf);
         do_assert(res == 0);
@@ -100,7 +100,7 @@ u64 setup(const char* cnfInput, FILE** f_directives_out, FILE** f_feedback_out) 
     // Fork off a checker process.
     if (do_fork()) {
         // child: checker process
-        snprintf(charbuf, 1024, "build/trusted_checker_process -fifo-directives=%s -fifo-feedback=%s",
+        snprintf(charbuf, 1024, "build/impcheck_check -fifo-directives=%s -fifo-feedback=%s",
             pipeDirectives, pipeFeedback);
         int res = system(charbuf);
         do_assert(res == 0);
@@ -139,6 +139,21 @@ u64 setup(const char* cnfInput, FILE** f_directives_out, FILE** f_feedback_out) 
 
     // increment our checker ID for the next call
     return checker_instance_id++;
+}
+
+bool confirm(const char* cnfInput, int result, const u8* sig) {
+
+    // Convert result signature to a string
+    char sigstr[2*SIG_SIZE_BYTES+1];
+    trusted_utils_sig_to_str(sig, sigstr);
+
+    // Execute confirmer sub-process
+    char charbuf[1024];
+    snprintf(charbuf, 1024, "build/impcheck_confirm -formula-input=%s -result=%i -result-sig=%s",
+        cnfInput, result, sigstr);
+    const int res = system(charbuf);
+
+    return res == 0;
 }
 
 // Clean up a checker process previously opened via "setup". The checker must already
@@ -208,8 +223,9 @@ void test_trivial_sat() {
     printf("[TEST] --- begin test_trivial_sat() ---\n");
 
     // Parse formula and set up trusted checker process
+    const char* cnf = "cnf/trivial-sat.cnf";
     FILE *out_directives, *in_feedback;
-    u64 chkid = setup("cnf/trivial-sat.cnf", &out_directives, &in_feedback);
+    u64 chkid = setup(cnf, &out_directives, &in_feedback);
 
     // VALIDATE_SAT
     trusted_utils_write_char(TRUSTED_CHK_VALIDATE_SAT, out_directives);
@@ -219,6 +235,10 @@ void test_trivial_sat() {
     await_ok(out_directives, in_feedback);
     u8 sat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(sat_sig, in_feedback);
+
+    // (optional) confirm with "confirmer" module
+    bool ok = confirm(cnf, 10, sat_sig);
+    do_assert(ok);
 
     // TERMINATE
     clean_up(chkid, out_directives, in_feedback);
@@ -241,8 +261,9 @@ void test_trivial_unsat() {
     printf("[TEST] --- begin test_trivial_unsat() ---\n");
 
     // Parse formula and set up trusted checker process
+    const char* cnf = "cnf/trivial-unsat.cnf";
     FILE *out_directives, *in_feedback;
-    u64 chkid = setup("cnf/trivial-unsat.cnf", &out_directives, &in_feedback);
+    u64 chkid = setup(cnf, &out_directives, &in_feedback);
 
     // PRODUCE
     const int cls_5[1] = {1}; const u64 hints_5[2] = {1, 2};
@@ -257,7 +278,11 @@ void test_trivial_unsat() {
     await_ok(out_directives, in_feedback);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback);
-    
+
+    // (optional) confirm with "confirmer" module
+    bool ok = confirm(cnf, 20, unsat_sig);
+    do_assert(ok);
+
     // TERMINATE
     clean_up(chkid, out_directives, in_feedback);
     printf("[TEST] ---  end  test_trivial_unsat() ---\n\n");
@@ -271,13 +296,14 @@ void test_trivial_unsat_x2() {
     printf("[TEST] --- begin test_trivial_unsat_x2() ---\n");
 
     // Parse formula and set up trusted checker processes.
-    // (NOTE: We run a parser process for each checker process we initialize here.
+    // (NOTE: We run a parser process for each checker process we initialize.
     // In actual solvers, you probably want to only run a single parser process
     // and use its output for all solvers and checkers.)
+    const char* cnf = "cnf/trivial-unsat.cnf";
     FILE *out_directives_1, *in_feedback_1;
-    u64 chkid_1 = setup("cnf/trivial-unsat.cnf", &out_directives_1, &in_feedback_1);
+    u64 chkid_1 = setup(cnf, &out_directives_1, &in_feedback_1);
     FILE *out_directives_2, *in_feedback_2;
-    u64 chkid_2 = setup("cnf/trivial-unsat.cnf", &out_directives_2, &in_feedback_2);
+    u64 chkid_2 = setup(cnf, &out_directives_2, &in_feedback_2);
 
     // PRODUCE
     const int cls_5[1] = {1}; const u64 hints_5[2] = {1, 2}; u8 sig_5[SIG_SIZE_BYTES];
@@ -298,6 +324,10 @@ void test_trivial_unsat_x2() {
     await_ok(out_directives_1, in_feedback_1);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback_1);
+
+    // (optional) confirm with "confirmer" module
+    bool ok = confirm(cnf, 20, unsat_sig);
+    do_assert(ok);
     
     // TERMINATE
     clean_up(chkid_1, out_directives_1, in_feedback_1);

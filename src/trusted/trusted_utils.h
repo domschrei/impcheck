@@ -59,3 +59,5 @@ void trusted_utils_write_ul(u64 u, FILE* file);
 void trusted_utils_write_uls(const u64* data, u64 nb_uls, FILE* file);
 void trusted_utils_write_sig(const u8* sig, FILE* file);
 
+void trusted_utils_sig_to_str(const u8* sig, char* out);
+bool trusted_utils_str_to_sig(const char* str, u8* out);

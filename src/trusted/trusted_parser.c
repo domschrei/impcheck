@@ -114,13 +114,14 @@ void tp_end() {
     free(data);
 }
 
-bool tp_parse() {
+bool tp_parse(u8** sig) {
     while (true) {
         int c_int = UNLOCKED_IO(fgetc)(f);
         if (process((char) c_int)) break;
     }
     if (began_num) append_integer();
     if (data->size > 0) output_literal_buffer();
-    trusted_utils_write_sig(siphash_digest(), f_out);
+    *sig = siphash_digest();
+    trusted_utils_write_sig(*sig, f_out);
     return input_finished && !input_invalid;
 }

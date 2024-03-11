@@ -1,14 +1,14 @@
  
 # ImpCheck - Immediate Parallel Proof Checking
 
-Provides code for two executables, a parser and a checker module, which are meant to be used within a parallel clause-sharing solver to perform LRAT checking on-the-fly.
+Provides code for three executables (parser, checker, confirmer) to be used within a parallel clause-sharing solver for on-the-fly LRAT proof checking.
 
 ## Compilation
 
 ```bash
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DIMPCHECK_WRITE_DIRECTIVES=0 -DIMPCHECK_FLUSH_ALWAYS=1
+cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DIMPCHECK_WRITE_DIRECTIVES=0 -DIMPCHECK_FLUSH_ALWAYS=1
 make
 cd ..
 ```
@@ -26,17 +26,18 @@ cd ..
 
 ### Isolated Execution
 
-`build/impcheck_parser -formula-input=<path/to/cnf> -fifo-parsed-formula=<path/to/output>`  
-`build/impcheck_checker -fifo-directives=<path/to/input> -fifo-feedback=<path/to/output>`
+`build/impcheck_parse -formula-input=<path/to/cnf> -fifo-parsed-formula=<path/to/output>`  
+`build/impcheck_check -fifo-directives=<path/to/input> -fifo-feedback=<path/to/output>`  
+`build/impcheck_confirm -formula-input=<path/to/cnf> -result=<10|20> -result-sig=<signature>`
 
 The intended mode of operation is that all paths specified via `-fifo-*` options are in fact named UNIX pipes (i.e., via `mkfifo`).
 However, you can also specify actual, complete files to "replay" a sequence of written directives and to write the results persistently.
 
 ### End-to-end Execution
 
-Please examine the file `test/test_full.c` and the corresponding executable `build/test_full`.
+Please examine the file `test/test_full.c` which is built into the executable `build/test_full`.
 This code is (also) meant as an introduction and quick start on how these modules can be integrated in a parallel solver framework.
 
 ### Checker Input/Output Format
 
-Each directive to a checker process begins with a single character specifying the type of the directive, followed by a sequence of objects whose length (individually and in total) is given by the directive type and (in some cases) by certain "size" fields. The output by the checker process is similarly well-defined based on the shape of the directive. Please consult the definitions provided in `src/trusted/checker_interface.h` for the exact specification.
+Each directive to a checker begins with a single character specifying the type of the directive, followed by a sequence of objects whose length (individually and in total) is given by the directive type and (in some cases) by certain "size" fields. A checker's output is similarly well-defined based on the shape of the directive. Please consult the definitions provided in `src/trusted/checker_interface.h` for the exact specification.

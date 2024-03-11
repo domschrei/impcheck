@@ -20,7 +20,8 @@ int main(int argc, char *argv[]) {
     // Parse
     FILE* source = fopen(fifo_parsed_formula, "w");
     tp_init(formula_input, source);
-    bool ok = tp_parse();
+    u8* sig;
+    bool ok = tp_parse(&sig);
     if (!ok) abort();
     return 0;
 }

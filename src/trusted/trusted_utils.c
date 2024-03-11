@@ -1,5 +1,6 @@
 
 #include "trusted_utils.h"
+#include <assert.h>
 #if IMPCHECK_WRITE_DIRECTIVES
 #include "../writer.h"
 #endif
@@ -10,10 +11,10 @@
 char trusted_utils_msgstr[512] = "";
 
 void trusted_utils_log(const char* msg) {
-    printf("[TRUSTED_CORE %i] %s\n", getpid(), msg);
+    printf("c [TRUSTED_CORE %i] %s\n", getpid(), msg);
 }
 void trusted_utils_log_err(const char* msg) {
-    printf("[TRUSTED_CORE %i] [ERROR] %s\n", getpid(), msg);
+    printf("c [TRUSTED_CORE %i] [ERROR] %s\n", getpid(), msg);
 }
 
 void trusted_utils_exit_eof() {
@@ -147,4 +148,29 @@ void trusted_utils_write_uls(const u64* data, u64 nb_uls, FILE* file) {
 void trusted_utils_write_sig(const u8* sig, FILE* file) {
     u64 nb_read = UNLOCKED_IO(fwrite)(sig, sizeof(int), 4, file);
     if (nb_read < 4) trusted_utils_exit_eof();
+}
+
+
+void trusted_utils_sig_to_str(const u8* sig, char* out) {
+    for (int charpos = 0; charpos < SIG_SIZE_BYTES; charpos++) {
+        char val1 = (sig[charpos] >> 4) & 0x0f;
+        char val2 = sig[charpos] & 0x0f;
+        assert(val1 >= 0 && val1 < 16);
+        assert(val2 >= 0 && val2 < 16);
+        out[2*charpos+0] = val1>=10 ? 'a'+val1-10 : '0'+val1;
+        out[2*charpos+1] = val2>=10 ? 'a'+val2-10 : '0'+val2;
+    }
+    out[SIG_SIZE_BYTES*2] = '\0';
+}
+
+bool trusted_utils_str_to_sig(const char* str, u8* out) {
+    for (int bytepos = 0; bytepos < SIG_SIZE_BYTES; bytepos++) {
+        const char* hex_pair = str + bytepos*2;
+        char hex1 = hex_pair[0]; char hex2 = hex_pair[1];
+        int byte = 16 * (hex1 >= '0' && hex1 <= '9' ? hex1-'0' : 10+hex1-'a')
+                      + (hex2 >= '0' && hex2 <= '9' ? hex2-'0' : 10+hex2-'a');
+        if (byte < 0 || byte >= 256) return false;
+        out[bytepos] = (u8) byte;
+    }
+    return true;
 }
