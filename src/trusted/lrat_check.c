@@ -42,6 +42,7 @@ bool done_loading = false;
 // Keep track of asserted unit clauses in a stack
 struct int_vec* assigned_units;
 
+bool check_model;
 
 
 bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
@@ -143,12 +144,13 @@ bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
     return ok;
 }
 
-void lrat_check_init(int nb_vars, const u8* sig_key_128bit) {
+void lrat_check_init(int nb_vars, const u8* sig_key_128bit, bool opt_check_model) {
     clause_table = hash_table_init(16);
     clause_to_add = int_vec_init(512);
     var_values = i8_vec_init(nb_vars+1);
     assigned_units = int_vec_init(512);
     siphash_init(sig_key_128bit);
+    check_model = opt_check_model;
 }
 
 bool lrat_check_load(int lit) {
@@ -193,7 +195,7 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
         }
-        if (id <= nb_loaded_clauses) {
+        if (check_model && id <= nb_loaded_clauses) {
             // Do not delete original problem clauses to enable checking of a model
             continue;
         }
@@ -223,6 +225,11 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     // Still loading the formula?
     if (!done_loading) {
         snprintf(trusted_utils_msgstr, 512, "SAT validation illegal - loading formula was not concluded");
+        return false;
+    }
+    // Not executed with checking of models enabled?
+    if (!check_model) {
+        snprintf(trusted_utils_msgstr, 512, "SAT validation illegal - not executed to explicitly support this");
         return false;
     }
     // Check each original problem clause

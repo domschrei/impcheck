@@ -1,6 +1,5 @@
 
 #include <stdio.h>
-#include <sys/prctl.h>
 #include <unistd.h>
 
 #include "trusted_utils.h"
@@ -11,16 +10,18 @@
 
 int main(int argc, char *argv[]) {
 
-    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
-
     const char opt_directives[] = "-fifo-directives=";
     const char opt_feedback[] = "-fifo-feedback=";
+    const char opt_checkmodel[] = "-check-model";
     const char *fifo_directives = "", *fifo_feedback = "";
-    for (int i = 0; i < argc; i++) {
+    bool check_model = false;
+    for (int i = 1; i < argc; i++) {
         if (trusted_utils_begins_with(argv[i], opt_directives))
             fifo_directives = argv[i] + (sizeof(opt_directives)-1);
         if (trusted_utils_begins_with(argv[i], opt_feedback))
             fifo_feedback = argv[i] + (sizeof(opt_feedback)-1);
+        if (trusted_utils_begins_with(argv[i], opt_checkmodel))
+            check_model = true;
     }
 
 #if IMPCHECK_WRITE_DIRECTIVES
@@ -30,7 +31,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     tc_init(fifo_directives, fifo_feedback);
-    int res = tc_run();
+    int res = tc_run(check_model);
     fflush(stdout);
     return res;
 }

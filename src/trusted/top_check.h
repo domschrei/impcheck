@@ -1,7 +1,7 @@
 
 #include "trusted_utils.h"
 
-void top_check_init(int nb_vars);
+void top_check_init(int nb_vars, bool check_model);
 void top_check_commit_formula_sig(const u8* f_sig);
 void top_check_load(int lit);
 bool top_check_end_load();

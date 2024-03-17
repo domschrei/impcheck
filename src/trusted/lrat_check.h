@@ -3,7 +3,7 @@
 
 #include "trusted_utils.h"
 
-void lrat_check_init(int nb_vars, const u8* sig_key_128bit);
+void lrat_check_init(int nb_vars, const u8* sig_key_128bit, bool opt_check_model);
 bool lrat_check_load(int lit);
 bool lrat_check_end_load(u8** out_sig);
 bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits);

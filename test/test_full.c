@@ -100,7 +100,7 @@ u64 setup(const char* cnfInput, FILE** f_directives_out, FILE** f_feedback_out) 
     // Fork off a checker process.
     if (do_fork()) {
         // child: checker process
-        snprintf(charbuf, 1024, "build/impcheck_check -fifo-directives=%s -fifo-feedback=%s",
+        snprintf(charbuf, 1024, "build/impcheck_check -fifo-directives=%s -fifo-feedback=%s -check-model",
             pipeDirectives, pipeFeedback);
         int res = system(charbuf);
         do_assert(res == 0);

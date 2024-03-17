@@ -23,8 +23,8 @@ void compute_clause_signature(u64 id, const int* lits, int nb_lits, u8* out) {
 }
 
 
-void top_check_init(int nb_vars) {
-    lrat_check_init(nb_vars, SECRET_KEY);
+void top_check_init(int nb_vars, bool check_model) {
+    lrat_check_init(nb_vars, SECRET_KEY, check_model);
     siphash_init(SECRET_KEY);
 }
 
