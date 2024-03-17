@@ -33,6 +33,8 @@ cd ..
 The intended mode of operation is that all paths specified via `-fifo-*` options are in fact named UNIX pipes (i.e., via `mkfifo`).
 However, you can also specify actual, complete files to "replay" a sequence of written directives and to write the results persistently.
 
+For `impcheck_check`, specify the optional argument `-check-model` if you also intend to get found models a.k.a. satisfying assignments checked (used together with Mallob's `-otfcm=1`).
+
 ### End-to-end Execution
 
 Please examine the file `test/test_full.c` which is built into the executable `build/test_full`.
