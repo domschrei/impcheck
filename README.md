@@ -19,7 +19,7 @@ cd ..
 * `-DIMPCHECK_WRITE_DIRECTIVES=1`: Write each incoming directive into a separate binary file
 * `-DIMPCHECK_WRITE_DIRECTIVES=2`: Write each incoming directive into a separate human-readable ASCII file
 
-* `-DIMPCHECK_FLUSH_ALWAYS=0`: Flush checker's feedback pipe only for selected directives. Can be enabled (and is the most efficient) if the reading of feedback is done in a different thread than the writing of directives, or if reads are done in a non-blocking manner. CAN HANG otherwise, e.g., if a single thread forwards a clause derivation with a blocking write and then attempts a blocking read of the result.
+* `-DIMPCHECK_FLUSH_ALWAYS=0`: Flush checker's feedback pipe only for selected directives. Can be used (and is the most efficient) if the reading of feedback is done in a different thread than the writing of directives, or if reads are done in a non-blocking manner. CAN HANG otherwise, e.g., if a single thread forwards a clause derivation with a blocking write and then attempts a blocking read of the result.
 * `-DIMPCHECK_FLUSH_ALWAYS=1`: Flush checker's feedback pipe after every single directive. Required if a single thread alternates between blocking reads and writes to the respective pipes. Safe, but may be slower.
 
 ## Execution
