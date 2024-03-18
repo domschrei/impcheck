@@ -1,7 +1,10 @@
  
 # ImpCheck - Immediate Massively Parallel Propositional Proof Checking
 
-Provides code for three executables (parser, checker, confirmer) to be used within a parallel clause-sharing solver for on-the-fly LRAT proof checking.
+Provides three executables (parser, checker, confirmer) to use with a parallel clause-sharing solver for on-the-fly LRAT proof checking.
+
+![Courtesy Bing Image Creator: hundreds of imps with long pointy ears, sharp teeth and fiery eyes around a clipboard with checkmarks](https://dominikschreiber.de/img/impcheck.png)
+(Courtesy Bing Image Creator)
 
 ## Compilation
 
