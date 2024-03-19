@@ -3,8 +3,7 @@
 
 Provides three executables (parser, checker, confirmer) to use with a parallel clause-sharing solver for on-the-fly LRAT proof checking.
 
-![Courtesy Bing Image Creator: hundreds of imps with long pointy ears, sharp teeth and fiery eyes around a clipboard with checkmarks](https://dominikschreiber.de/img/impcheck.png)
-(Courtesy Bing Image Creator)
+![Three imps looking through magnifying glasses at a pile of tangled threads (via MS Designer Image Creator + GIMP)](https://dominikschreiber.de/img/impcheck.png)
 
 ## Compilation
 
