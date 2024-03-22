@@ -1,9 +1,8 @@
 
-#include <stdio.h>
-#include <unistd.h>
-
-#include "trusted_utils.h"
-#include "trusted_checker.h"
+#include <stdbool.h>          // for bool, false
+#include <stdio.h>            // for fflush, stdout
+#include "trusted_checker.h"  // for tc_init, tc_run
+#include "trusted_utils.h"    // for trusted_utils_try_match_arg, trusted_ut...
 #if IMPCHECK_WRITE_DIRECTIVES
 #include "../writer.h"
 #endif

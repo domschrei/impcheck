@@ -1,7 +1,7 @@
 
+#include <stdlib.h>
 #include <stdbool.h>        // for bool, false, true
 #include <stdio.h>          // for snprintf
-#include "clause.h"         // for clause_free, clause_init
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "siphash.h"        // for siphash_digest, siphash_init, siphash_update
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
@@ -9,13 +9,6 @@
 // Instantiate int_vec
 #define TYPE int
 #define TYPED(THING) int_ ## THING
-#include "vec.h"
-#undef TYPED
-#undef TYPE
-
-// Instantiate u64_vec
-#define TYPE u64
-#define TYPED(THING) u64_ ## THING
 #include "vec.h"
 #undef TYPED
 #undef TYPE
@@ -31,39 +24,52 @@
 // We still use a power-of-two growth policy since this makes lookups faster.
 struct hash_table* clause_table;
 
+// Table of all variables with their current assignment (-1/0/1).
+// We perform all LRUP checks using one big vector of all variable polarities,
+// which is set and reset for each check. This allows for O(1) queries
+// for a literal's assignment.
 struct i8_vec* var_values;
-bool unsat_proven = false;
 
+// We remember the set variables in a stack to reset them later.
+struct int_vec* assigned_units;
+
+bool check_model;
 u64 id_to_add = 1;
 u64 nb_loaded_clauses = 0;
 struct int_vec* clause_to_add;
 bool done_loading = false;
+bool unsat_proven = false;
 
-// Keep track of asserted unit clauses in a stack
-struct int_vec* assigned_units;
 
-bool check_model;
+int* clause_init(const int* data, int nb_lits) {
+    int* cls = trusted_utils_calloc(nb_lits+1, sizeof(int));
+    for (int i = 0; i < nb_lits; i++) cls[i] = data[i];
+    cls[nb_lits] = 0;
+    return cls;
+}
 
+void reset_assignments() {
+    for (u64 i = 0; i < assigned_units->size; i++)
+        var_values->data[assigned_units->data[i]] = 0;
+    int_vec_clear(assigned_units);
+}
 
 bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
 
     int_vec_reserve(assigned_units, nb_lits + nb_hints);
     // Assume the negation of each literal in the new clause
     for (int i = 0; i < nb_lits; i++) {
-        int var = lits[i] > 0 ? lits[i] : -lits[i];
+        const int var = lits[i] > 0 ? lits[i] : -lits[i];
         var_values->data[var] = lits[i]>0 ? -1 : 1; // negated
         int_vec_push(assigned_units, var); // remember to reset later
-        //printf("%i ", lits[i]);
     }
-    //printf("0 ");
 
     // Traverse the provided hints to derive a conflict, i.e., the empty clause
     bool ok = true;
     for (int i = 0; i < nb_hints; i++) {
 
         // Find the clause for this hint
-        u64 hint_id = hints[i];
-        //printf("%lu ( ", hint_id);
+        const u64 hint_id = hints[i];
         int* cls = (int*) hash_table_find(clause_table, hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
@@ -74,10 +80,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
         for (int lit_idx = 0; ; lit_idx++) { // for each literal ...
-            int lit = cls[lit_idx];
-            //printf("%i ", lit);
+            const int lit = cls[lit_idx];
             if (lit == 0) break;           // ... until termination zero
-            int var = lit > 0 ? lit : -lit;
+            const int var = lit > 0 ? lit : -lit;
             if (var_values->data[var] == 0) {
                 // Literal is unassigned
                 if (MALLOB_UNLIKELY(new_unit != 0)) {
@@ -89,7 +94,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 continue;
             }
             // Literal is fixed
-            bool sign = var_values->data[var]>0;
+            const bool sign = var_values->data[var]>0;
             if (MALLOB_UNLIKELY(sign == (lit>0))) {
                 // ERROR - clause is satisfied, so it is not a correct hint
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: dependency %lu is satisfied", base_id, hint_id);
@@ -97,7 +102,6 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             }
             // All OK - literal is false, thus (virtually) removed from the clause
         }
-        //printf(") ");
         if (!ok) break; // error detected - stop
 
         // NO unit derived?
@@ -110,10 +114,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 break;
             }
             // Final hint produced empty clause - everything OK!
-            for (u64 i = 0; i < assigned_units->size; i++)
-                var_values->data[assigned_units->data[i]] = 0; // reset variable values
-            int_vec_clear(assigned_units);
-            //printf("\n");
+            reset_assignments();
             return true;
         }
         // Insert the new derived unit clause
@@ -125,15 +126,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     // ERROR - something went wrong
     if (trusted_utils_msgstr[0] == '\0')
         snprintf(trusted_utils_msgstr, 512, "Derivation %lu: no empty clause was produced", base_id);
-    for (u64 i = 0; i < assigned_units->size; i++)
-        var_values->data[assigned_units->data[i]] = 0; // reset variable values
-    int_vec_clear(assigned_units);
+    reset_assignments();
     return false;
 }
-
-
-
-
 
 
 bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
@@ -173,6 +168,7 @@ bool lrat_check_end_load(u8** out_sig) {
         snprintf(trusted_utils_msgstr, 512, "literals left in unterminated clause");
         return false;
     }
+    siphash_pad(2); // two-byte padding for formula signature input
     *out_sig = siphash_digest();
     done_loading = true;
     nb_loaded_clauses = id_to_add-1;
@@ -199,7 +195,7 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
             // Do not delete original problem clauses to enable checking of a model
             continue;
         }
-        clause_free(cls);
+        free(cls);
         if (!hash_table_delete_last_found(clause_table)) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: Hash table error for ID %lu", id);
             return false;
@@ -234,7 +230,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     }
     // Check each original problem clause
     for (u64 id = 1; id <= nb_loaded_clauses; id++) {
-        int* cls = (int*) hash_table_find(clause_table, id);
+        const int* cls = (int*) hash_table_find(clause_table, id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - clause not found
             snprintf(trusted_utils_msgstr, 512, "SAT validation: original ID %lu not found", id);
@@ -243,8 +239,8 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         // Iterate over the literals of the clause
         bool satisfied = false;
         for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) {
-            int lit = cls[lit_idx];
-            int var = lit>0 ? lit : -lit;
+            const int lit = cls[lit_idx];
+            const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable
                 snprintf(trusted_utils_msgstr, 512, "SAT validation: model does not cover variable %i", var);

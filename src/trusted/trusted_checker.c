@@ -45,10 +45,6 @@ void say_with_flush(bool ok) {
     UNLOCKED_IO(fflush)(output);
 }
 
-u64 read_id() {
-    return trusted_utils_read_ul(input);
-}
-
 void read_literals(int nb_lits) {
     int_vec_reserve(buf_lits, nb_lits);
     trusted_utils_read_ints(buf_lits->data, nb_lits, input);
@@ -87,7 +83,7 @@ int tc_run(bool check_model) {
         if (c == TRUSTED_CHK_CLS_PRODUCE) {
 
             // parse
-            const u64 id = read_id();
+            const u64 id = trusted_utils_read_ul(input);
             const int nb_lits = trusted_utils_read_int(input);
             read_literals(nb_lits);
             const int nb_hints = trusted_utils_read_int(input);
@@ -107,7 +103,7 @@ int tc_run(bool check_model) {
         } else if (c == TRUSTED_CHK_CLS_IMPORT) {
 
             // parse
-            const u64 id = read_id();
+            const u64 id = trusted_utils_read_ul(input);
             const int nb_lits = trusted_utils_read_int(input);
             read_literals(nb_lits);
             trusted_utils_read_sig(buf_sig, input);
@@ -126,7 +122,7 @@ int tc_run(bool check_model) {
             bool res = top_check_delete(buf_hints->data, nb_hints);
             // respond
             say(res);
-            nb_deleted++;
+            nb_deleted += nb_hints;
 
         } else if (c == TRUSTED_CHK_LOAD) {
 
@@ -186,10 +182,8 @@ int tc_run(bool check_model) {
     }
 
     float elapsed = (float) (clock() - start) / CLOCKS_PER_SEC;
-
-    char msg[128];
-    snprintf(msg, 128, "cpu:%.3f prod:%lu imp:%lu del:%lu", elapsed, nb_produced, nb_imported, nb_deleted);
-    trusted_utils_log(msg);
+    snprintf(trusted_utils_msgstr, 512, "cpu:%.3f prod:%lu imp:%lu del:%lu", elapsed, nb_produced, nb_imported, nb_deleted);
+    trusted_utils_log(trusted_utils_msgstr);
 
     return 0;
 }

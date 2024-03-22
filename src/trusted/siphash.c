@@ -166,6 +166,10 @@ void siphash_update(const unsigned char* data, u64 nb_bytes) {
     }
     inlen += nb_bytes;
 }
+void siphash_pad(u64 nb_bytes) {
+    const unsigned char c = 0;
+    for (u64 i = 0; i < nb_bytes; i++) siphash_update(&c, 1);
+}
 u8* siphash_digest() {
     process_final_block();
     return out;

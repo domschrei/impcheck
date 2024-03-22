@@ -48,9 +48,8 @@ void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes) {
 }
 
 bool trusted_utils_equal_signatures(const u8* left, const u8* right) {
-    for (u64 i = 0; i < SIG_SIZE_BYTES; i++) {
+    for (u64 i = 0; i < SIG_SIZE_BYTES; i++)
         if (left[i] != right[i]) return false;
-    }
     return true;
 }
 

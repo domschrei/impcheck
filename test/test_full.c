@@ -157,7 +157,7 @@ bool confirm(const char* cnfInput, int result, const u8* sig) {
 }
 
 // Clean up a checker process previously opened via "setup". The checker must already
-// have received and reponded to a TERMINATE directive beforehand.
+// have received and responded to a TERMINATE directive beforehand.
 void clean_up(u64 checker_id, FILE* out_directives, FILE* in_feedback) {
 
     // "TERMINATE" directive
@@ -210,6 +210,14 @@ void import_cls(FILE* out_directives, FILE* in_feedback,
     trusted_utils_write_int(clslen, out_directives); // clause length
     trusted_utils_write_ints(lits, clslen, out_directives); // literals
     trusted_utils_write_sig(signature, out_directives); // signature
+    await_ok(out_directives, in_feedback);
+}
+
+void delete_cls(FILE* out_directives, FILE* in_feedback, const u64* ids, int nb_ids) {
+
+    trusted_utils_write_char(TRUSTED_CHK_CLS_DELETE, out_directives);
+    trusted_utils_write_int(nb_ids, out_directives);
+    trusted_utils_write_uls(ids, nb_ids, out_directives);
     await_ok(out_directives, in_feedback);
 }
 
@@ -310,6 +318,10 @@ void test_trivial_unsat_x2() {
     produce_cls(out_directives_1, in_feedback_1, 5, 1, cls_5, 2, hints_5, sig_5);
     const int cls_6[1] = {-1}; const u64 hints_6[2] = {3, 4}; u8 sig_6[SIG_SIZE_BYTES];
     produce_cls(out_directives_2, in_feedback_2, 6, 1, cls_6, 2, hints_6, sig_6);
+
+    // DELETE
+    const u64 del_ids[4] = {3, 4};
+    delete_cls(out_directives_2, in_feedback_2, del_ids, 2);
 
     // IMPORT
     import_cls(out_directives_1, in_feedback_1, 6, 1, cls_6, sig_6);

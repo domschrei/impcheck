@@ -1,5 +1,9 @@
 
-#include "trusted_utils.h"
+#include <stdbool.h>        // for bool
+#include "trusted_utils.h"  // for u8, u64
+
+// Top level checking procedure. Checks clauses, validates signatures,
+// and returns certificates for (un)satisfiability.
 
 void top_check_init(int nb_vars, bool check_model);
 void top_check_commit_formula_sig(const u8* f_sig);

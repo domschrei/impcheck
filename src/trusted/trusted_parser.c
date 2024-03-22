@@ -121,6 +121,7 @@ bool tp_parse(u8** sig) {
     }
     if (began_num) append_integer();
     if (data->size > 0) output_literal_buffer();
+    siphash_pad(2); // two-byte padding for formula signature input
     *sig = siphash_digest();
     trusted_utils_write_sig(*sig, f_out);
     return input_finished && !input_invalid;
