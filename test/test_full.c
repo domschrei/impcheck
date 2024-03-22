@@ -84,13 +84,14 @@ u64 setup(const char* cnfInput, FILE** f_directives_out, FILE** f_feedback_out) 
     /*const int nb_clauses = */trusted_utils_read_int(in_parsed);
     struct int_vec* fvec = int_vec_init(1<<14);
     while (true) {
-        // Cannot use trusted_utils_read_int here since EOF makes it terminate!
+        // (note: cannot use trusted_utils_read_int here since EOF makes it terminate)
         int lit;
         const int nb_read = fread(&lit, sizeof(int), 1, in_parsed);
         if (nb_read == 0) break;
         int_vec_push(fvec, lit);
     }
     const int* f = fvec->data;
+    // the last SIG_SIZE_BYTES bytes of the "formula" are actually its signature
     const u8* fsig = ((u8*) (fvec->data + fvec->size)) - SIG_SIZE_BYTES;
     const u64 fsize = fvec->size - (SIG_SIZE_BYTES / sizeof(int));
     // wait for parser process to exit (equivalent to "join")
@@ -177,7 +178,7 @@ void clean_up(u64 checker_id, FILE* out_directives, FILE* in_feedback) {
     remove(pipeDirectives);
     remove(pipeFeedback);
 
-    // "join" trusted checker process
+    // "join" checker process
     // NOTE: This wait() does not necessarily match the intended process.
     // Since all resources are cleaned up before a sub-process' termination anyway,
     // all we really want is to call wait() as often as there are sub-processes.
@@ -213,6 +214,7 @@ void import_cls(FILE* out_directives, FILE* in_feedback,
     await_ok(out_directives, in_feedback);
 }
 
+// Helper method to delete a set of clauses (specified by IDs).
 void delete_cls(FILE* out_directives, FILE* in_feedback, const u64* ids, int nb_ids) {
 
     trusted_utils_write_char(TRUSTED_CHK_CLS_DELETE, out_directives);

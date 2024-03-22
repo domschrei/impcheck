@@ -2,14 +2,12 @@
 #include "siphash.h"
 #include "trusted_utils.h"
 #include <stdbool.h>  // for true
-#include <stdio.h>    // for printf
 #include <stdlib.h>   // for free, abort
+#include <assert.h>   // for assert
 
 #define cROUNDS 2
 #define dROUNDS 4
 
-typedef unsigned long size_t;
-typedef unsigned int uint32_t;
 #define SH_UINT64_C(c) c##UL
 
 #define ROTL(x, b) (u64)(((x) << (b)) | ((x) >> (64 - (b))))
@@ -21,8 +19,8 @@ typedef unsigned int uint32_t;
     (p)[3] = (u8)((v) >> 24);
 
 #define U64TO8_LE(p, v)                                                        \
-    U32TO8_LE((p), (uint32_t)((v)));                                           \
-    U32TO8_LE((p) + 4, (uint32_t)((v) >> 32));
+    U32TO8_LE((p), (unsigned int)((v)));                                           \
+    U32TO8_LE((p) + 4, (unsigned int)((v) >> 32));
 
 #define U8TO64_LE(p)                                                           \
     (((u64)((p)[0])) | ((u64)((p)[1]) << 8) |                        \
@@ -55,7 +53,7 @@ u64 v0, v1, v2, v3;
 u64 k0, k1;
 u64 m;
 int i;
-size_t inlen;
+u64 inlen;
 
 u8* buf;
 unsigned char buflen = 0;
@@ -70,10 +68,7 @@ void process_next_block() {
 
 void process_final_block() {
     const int left = inlen & 7;
-    if (left != buflen) {
-        printf("[ERROR] SipHash : wrong residual buffer length! (%i vs %i)\n", left, buflen);
-        abort();
-    }
+    assert(left == buflen);
     u64 b = ((u64)inlen) << 56;
     u8* ni = buf;
 

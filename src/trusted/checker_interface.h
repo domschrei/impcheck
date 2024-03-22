@@ -1,6 +1,11 @@
 
 #pragma once
 
+// This file specifies the input and output format of the checker process.
+// For all multi-byte objects such as 32- or 64-bit integers, note the
+// system's endianness. For specifics, examine the methods
+// trusted_utils_{read,write}* in trusted_utils.c.
+
 // Initialize and begin the loading stage.
 // IN: #vars (int); 128-bit signature of the formula (from trusted parser)
 // OUT: OK
