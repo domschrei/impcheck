@@ -3,7 +3,7 @@
 #include <stdbool.h>        // for bool, false, true
 #include <stdio.h>          // for snprintf
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
-#include "siphash.h"        // for siphash_digest, siphash_init, siphash_update
+#include "siphash.h"        // for siphash_digest, siphash_update
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
 
 // Instantiate int_vec
@@ -139,12 +139,11 @@ bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
     return ok;
 }
 
-void lrat_check_init(int nb_vars, const u8* sig_key_128bit, bool opt_check_model) {
+void lrat_check_init(int nb_vars, bool opt_check_model) {
     clause_table = hash_table_init(16);
     clause_to_add = int_vec_init(512);
     var_values = i8_vec_init(nb_vars+1);
     assigned_units = int_vec_init(512);
-    siphash_init(sig_key_128bit);
     check_model = opt_check_model;
 }
 
