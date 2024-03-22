@@ -34,7 +34,8 @@ void trusted_utils_log_err(const char* msg);
 
 void trusted_utils_exit_eof();
 
-bool trusted_utils_begins_with(const char* str, const char* prefix);
+void trusted_utils_try_match_arg(const char* arg, const char* opt, const char** out);
+void trusted_utils_try_match_flag(const char* arg, const char* opt, bool* out);
 
 void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes);
 bool trusted_utils_equal_signatures(const u8* left, const u8* right);

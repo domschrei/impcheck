@@ -4,6 +4,16 @@
 #include <stdbool.h>        // for bool
 #include "trusted_utils.h"
 
+// A hash table mapping from u64 keys to void* values.
+// The key zero is a magic number representing an empty entry.
+// The capacity is provided logarithmically such that the
+// table's capacity is always a power of two.
+// Growing is done in powers of two, if the load factor exceeds 0.5.
+// No shrinking is done. Assuming roughly monotonic growth,
+// the table's load factor is always between 0.25 and 0.5.
+// Collisions are handled via linear probing, which in this mode
+// appears to perform reasonably well.
+
 struct hash_table_entry {
     u64 key;
     void* val;

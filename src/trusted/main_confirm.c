@@ -15,21 +15,15 @@ int error() {
 
 int main(int argc, char *argv[]) {
 
-    const char opt_formula_input[] = "-formula-input=";
-    const char opt_result[] = "-result=";
-    const char opt_result_sig[] = "-result-sig=";
-    const char *formula_input = "", *result_sig = "";
-    int result = 0;
+    const char *formula_input = "", *result_sig = "", *resultint_str = "";
     for (int i = 0; i < argc; i++) {
-        if (trusted_utils_begins_with(argv[i], opt_formula_input))
-            formula_input = argv[i] + (sizeof(opt_formula_input)-1);
-        if (trusted_utils_begins_with(argv[i], opt_result))
-            result = atoi(argv[i] + (sizeof(opt_result)-1));
-        if (trusted_utils_begins_with(argv[i], opt_result_sig))
-            result_sig = argv[i] + (sizeof(opt_result_sig)-1);
+        trusted_utils_try_match_arg(argv[i], "-formula-input=", &formula_input);
+        trusted_utils_try_match_arg(argv[i], "-result-sig=", &result_sig);
+        trusted_utils_try_match_arg(argv[i], "-result=", &resultint_str);
     }
 
     // valid input?
+    int result = atoi(resultint_str);
     if (result != 10 && result != 20) {
         trusted_utils_log_err("Result code missing or invalid");
         return error();

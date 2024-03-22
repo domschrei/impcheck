@@ -10,18 +10,12 @@
 
 int main(int argc, char *argv[]) {
 
-    const char opt_directives[] = "-fifo-directives=";
-    const char opt_feedback[] = "-fifo-feedback=";
-    const char opt_checkmodel[] = "-check-model";
     const char *fifo_directives = "", *fifo_feedback = "";
     bool check_model = false;
     for (int i = 1; i < argc; i++) {
-        if (trusted_utils_begins_with(argv[i], opt_directives))
-            fifo_directives = argv[i] + (sizeof(opt_directives)-1);
-        if (trusted_utils_begins_with(argv[i], opt_feedback))
-            fifo_feedback = argv[i] + (sizeof(opt_feedback)-1);
-        if (trusted_utils_begins_with(argv[i], opt_checkmodel))
-            check_model = true;
+        trusted_utils_try_match_arg(argv[i], "-fifo-directives=", &fifo_directives);
+        trusted_utils_try_match_arg(argv[i], "-fifo-feedback=", &fifo_feedback);
+        trusted_utils_try_match_flag(argv[i], "-check-model", &check_model);
     }
 
 #if IMPCHECK_WRITE_DIRECTIVES

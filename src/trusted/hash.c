@@ -126,6 +126,7 @@ void* hash_table_find(struct hash_table* ht, u64 key) {
 }
 
 bool hash_table_insert(struct hash_table* ht, u64 key, void* val) {
+    if (key == 0) return false; // key 0 is reserved!
 
     if (ht->size == ht->max_size) {
         if (!realloc_table(ht)) return false; // no memory left
