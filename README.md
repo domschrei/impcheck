@@ -1,7 +1,9 @@
  
 # ImpCheck - Immediate Massively Parallel Propositional Proof Checking
 
-Provides three executables (parser, checker, confirmer) to use with a parallel clause-sharing solver for on-the-fly LRAT proof checking.
+This suite of three executables (parser, checker, confirmer) can be used together with a parallel and/or distributed clause-sharing solver to check its reasoning on-the-fly during solving. The solver code does not need to be trusted; clauses are shared with cryptographically strong signatures which effectively transfer the guarantee of their soundness across checker instances. Individual solver threads are required to output LRAT proof information.
+
+The software is released together with a 2024 SAT conference submission ("Scalable Trusted SAT Solving with on-the-fly LRAT Checking") – see https://github.com/domschrei/mallob-impcheck-data/ for more details.
 
 ![Three imps looking through magnifying glasses at a pile of tangled threads (via MS Designer Image Creator + GIMP)](https://dominikschreiber.de/img/impcheck.png)
 
