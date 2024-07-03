@@ -26,6 +26,13 @@ cd ..
 * `-DIMPCHECK_FLUSH_ALWAYS=0`: Flush checker's feedback pipe only for selected directives. Can be used (and is the most efficient) if the reading of feedback is done in a different thread than the writing of directives, or if reads are done in a non-blocking manner. CAN HANG otherwise, e.g., if a single thread forwards a clause derivation with a blocking write and then attempts a blocking read of the result.
 * `-DIMPCHECK_FLUSH_ALWAYS=1`: Flush checker's feedback pipe after every single directive. Required if a single thread alternates between blocking reads and writes to the respective pipes. Safe, but may be slower.
 
+### Secret Key
+
+Our clause signing approach relies on a confidential 128-bit key $K$ shared among all trusted parties. In the current version of ImpCheck, $K$ is simply baked into the trusted processes at compilation time and expected to be inaccessible otherwise.
+
+If you prefer to replace the default value of $K$ with a custom value, execute `python3 keygen.py x` (for some seed `x` that can be any string), which updates the source file `src/trusted/secret.c` with the new key.
+Then recompile and replace *all* binaries – all parser, checker, and confirmer processes involved in a solving attempt must operate on the same $K$.
+
 ## Execution
 
 ### Isolated Execution
