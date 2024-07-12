@@ -71,7 +71,7 @@ void tc_end() {
     fclose(input);
 }
 
-int tc_run(bool check_model) {
+int tc_run(bool check_model, bool lenient) {
     clock_t start = clock();
 
     u64 nb_produced = 0, nb_imported = 0, nb_deleted = 0;
@@ -134,7 +134,7 @@ int tc_run(bool check_model) {
         } else if (c == TRUSTED_CHK_INIT) {
 
             nb_vars = trusted_utils_read_int(input);
-            top_check_init(nb_vars, check_model);
+            top_check_init(nb_vars, check_model, lenient);
             trusted_utils_read_sig(formula_sig, input);
             top_check_commit_formula_sig(formula_sig);
             say_with_flush(true);

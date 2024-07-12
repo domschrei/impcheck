@@ -34,6 +34,7 @@ struct i8_vec* var_values;
 struct int_vec* assigned_units;
 
 bool check_model;
+bool lenient;
 u64 id_to_add = 1;
 u64 nb_loaded_clauses = 0;
 struct int_vec* clause_to_add;
@@ -130,21 +131,52 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     return false;
 }
 
+// Quadratic check for clause equivalence - 
+// assuming that most imported clauses are rather short.
+bool clauses_equivalent(int* left_cls, int* right_cls) {
+    int lit_idx = 0;
+    for (; left_cls[lit_idx] != 0; lit_idx++) {
+        const int left_lit = left_cls[lit_idx];
+        bool found = false;
+        for (int right_lit_idx = 0; right_cls[right_lit_idx] != 0; right_lit_idx++) {
+            if (right_cls[right_lit_idx] == left_lit) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    const int left_size = lit_idx;
+    for (lit_idx = 0; right_cls[lit_idx] != 0; lit_idx++) {}
+    const int right_size = lit_idx;
+    return left_size == right_size;
+}
 
 bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
     int* cls = clause_init(lits, nb_lits);
     bool ok = hash_table_insert(clause_table, id, cls);
-    if (!ok) snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
+    if (!ok) {
+        if (lenient) {
+            // In lenient mode, ignore the addition if and only if the clauses
+            // are syntactically equivalent (except for literal ordering).
+            int* old_cls = (int*) hash_table_find(clause_table, id);
+            if (old_cls && clauses_equivalent(old_cls, cls)) {
+                ok = true;
+            }
+        }
+        if (!ok) snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
+    }
     else if (nb_lits == 0) unsat_proven = true; // added top-level empty clause!
     return ok;
 }
 
-void lrat_check_init(int nb_vars, bool opt_check_model) {
+void lrat_check_init(int nb_vars, bool opt_check_model, bool opt_lenient) {
     clause_table = hash_table_init(16);
     clause_to_add = int_vec_init(512);
     var_values = i8_vec_init(nb_vars+1);
     assigned_units = int_vec_init(512);
     check_model = opt_check_model;
+    lenient = opt_lenient;
 }
 
 bool lrat_check_load(int lit) {

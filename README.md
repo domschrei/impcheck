@@ -39,13 +39,15 @@ Then recompile and replace *all* binaries – all parser, checker, and confirmer
 
 ```
 build/impcheck_parse -formula-input=<path/to/cnf> -fifo-parsed-formula=<path/to/output>
-build/impcheck_check -fifo-directives=<path/to/input> -fifo-feedback=<path/to/output> [-check-model]
+build/impcheck_check -fifo-directives=<path/to/input> -fifo-feedback=<path/to/output> [-check-model] [-lenient]
 build/impcheck_confirm -formula-input=<path/to/cnf> -result=<10|20> -result-sig=<signature>
 ```
 The intended mode of operation is that all paths specified via `-fifo-*` options are in fact named UNIX pipes precreated via `mkfifo`.
 However, you can also specify actual, complete files to "replay" a sequence of written directives and to write the results persistently.
 
 For `impcheck_check`, specify the optional argument `-check-model` if you also intend to get found models a.k.a. satisfying assignments checked (used together with Mallob's `-otfcm=1`). This can incur some memory overhead since deletion statements concerning original problem clauses will need to be ignored. Mallob mitigates this overhead to a degree by having each SAT process run only a single `impcheck_check` with `-check-model` enabled.
+
+The optional argument `-lenient` lets the checker accept repeated clause imports (not derivations!) of _the same clause with the same ID_. In all other cases, `impcheck_check` aborts with an error when encountering a clause derivation or import with an existing ID.
 
 ### End-to-end Execution
 

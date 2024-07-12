@@ -23,9 +23,9 @@ void compute_clause_signature(u64 id, const int* lits, int nb_lits, u8* out) {
 }
 
 
-void top_check_init(int nb_vars, bool check_model) {
+void top_check_init(int nb_vars, bool check_model, bool lenient) {
     siphash_init(SECRET_KEY);
-    lrat_check_init(nb_vars, check_model);
+    lrat_check_init(nb_vars, check_model, lenient);
 }
 
 void top_check_commit_formula_sig(const u8* f_sig) {
