@@ -12,9 +12,11 @@ int main(int argc, char *argv[]) {
 
     const char *fifo_directives = "", *fifo_feedback = "";
     bool check_model = false, lenient = false;
+    u64 num_solvers = 0;
     for (int i = 1; i < argc; i++) {
         trusted_utils_try_match_arg(argv[i], "-fifo-directives=", &fifo_directives);
         trusted_utils_try_match_arg(argv[i], "-fifo-feedback=", &fifo_feedback);
+        trusted_utils_try_match_num(argv[i], "-num-solvers=", &num_solvers);
         trusted_utils_try_match_flag(argv[i], "-check-model", &check_model);
         trusted_utils_try_match_flag(argv[i], "-lenient", &lenient);
     }
@@ -25,7 +27,7 @@ int main(int argc, char *argv[]) {
     writer_init(output_path);
 #endif
 
-    tc_init(fifo_directives, fifo_feedback);
+    tc_init(fifo_directives, fifo_feedback, num_solvers);
     int res = tc_run(check_model, lenient);
     fflush(stdout);
     return res;

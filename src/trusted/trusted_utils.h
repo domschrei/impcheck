@@ -35,6 +35,7 @@ void trusted_utils_log_err(const char* msg);
 void trusted_utils_exit_eof();
 
 void trusted_utils_try_match_arg(const char* arg, const char* opt, const char** out);
+void trusted_utils_try_match_num(const char* arg, const char* opt, u64* out);
 void trusted_utils_try_match_flag(const char* arg, const char* opt, bool* out);
 
 void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes);
