@@ -25,6 +25,7 @@ FILE* input; // named pipe
 FILE* output; // named pipe
 int nb_vars; // # variables in formula
 signature formula_sig; // formula signature
+u64 nb_solvers; // number of solvers
 
 bool do_logging = true;
 
@@ -55,13 +56,14 @@ void read_hints(int nb_hints) {
     trusted_utils_read_uls(buf_hints->data, nb_hints, input);
 }
 
-void tc_init(const char* fifo_in, const char* fifo_out) {
+void tc_init(const char* fifo_in, const char* fifo_out, u64 num_solvers) {
     input = fopen(fifo_in, "r");
     if (!input) trusted_utils_exit_eof();
     output = fopen(fifo_out, "w");
     if (!output) trusted_utils_exit_eof();
     buf_lits = int_vec_init(1 << 14);
     buf_hints = u64_vec_init(1 << 14);
+    nb_solvers = num_solvers;
 }
 
 void tc_end() {
@@ -182,7 +184,7 @@ int tc_run(bool check_model, bool lenient) {
     }
 
     float elapsed = (float) (clock() - start) / CLOCKS_PER_SEC;
-    snprintf(trusted_utils_msgstr, 512, "cpu:%.3f prod:%lu imp:%lu del:%lu", elapsed, nb_produced, nb_imported, nb_deleted);
+    snprintf(trusted_utils_msgstr, 512, "cpu:%.3f prod:%lu imp:%lu del:%lu n_s:%lu", elapsed, nb_produced, nb_imported, nb_deleted, nb_solvers);
     trusted_utils_log(trusted_utils_msgstr);
 
     return 0;
