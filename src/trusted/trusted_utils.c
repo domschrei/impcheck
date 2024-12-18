@@ -43,7 +43,7 @@ void trusted_utils_try_match_arg(const char* arg, const char* opt, const char** 
 
 void trusted_utils_try_match_num(const char* arg, const char* opt, u64* out) {
     const char* start_of_number = arg + strlen(opt);
-    if (begins_with(arg, opt)) *out = strtol( start_of_number, NULL, 10);
+    if (begins_with(arg, opt)) *out = strtol(start_of_number, NULL, 10);
 }
 
 void trusted_utils_try_match_flag(const char* arg, const char* opt, bool* out) {
