@@ -40,6 +40,9 @@ struct u64_vec* buf_hints;
 
 
 void say(bool ok) {
+#if IMPCHECK_WRITE_DIRECTIVES
+    writer_flush();
+#endif
     trusted_utils_write_char(ok ? TRUSTED_CHK_RES_ACCEPT : TRUSTED_CHK_RES_ERROR, output);
 #if IMPCHECK_FLUSH_ALWAYS
     UNLOCKED_IO(fflush)(output);
