@@ -3,7 +3,6 @@
 
 #include "assert.h"
 #include "stdlib.h"
-#include <stdio.h>
 
 // -1 1  -2 2 -3  3 -4  4 -5  5 ...
 // v  v  v  v  v  v  v  v  v  v ...
@@ -87,17 +86,12 @@ int qsort_compare( const void* a, const void* b) {
 
 int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
-    printf("ccprep ");
-
     // Compress literals in-place and then sort them in increasing order
     for (int i = 0; i < nb_lits; i++) {
-        printf("%i ", lits[i]);
         int ilit = cc_compress_lit(lits[i]);
         lits[i] = ilit;
     }
     qsort(lits, nb_lits, sizeof(int), qsort_compare);
-
-    printf("-> ");
 
     // Compute size of the output data with variable-length differential coding
     int size = 0;
@@ -106,23 +100,18 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
         int ilit = lits[i];
         size += cc_nb_needed_varlength_bytes(ilit - diff);
         lits[i] = ilit - diff;
-        printf("%i ", lits[i]);
         diff = ilit;
     }
     size += cc_nb_needed_varlength_bytes(size);
-    printf("\n");
     return size;
 }
 
 void cc_compress_and_write_clause(int* lits, int nb_lits, u32 compr_size, u8* out) {
     int idx = cc_write_varlength(compr_size, out);
-    printf("cc begin\n");
     for (int i = 0; i < nb_lits; i++) {
         int ilitWithDiff = lits[i];
-        printf("  cc write %u\n", ilitWithDiff);
         idx += cc_write_varlength(ilitWithDiff, out+idx);
     }
-    printf("cc end\n");
 }
 
 bool cc_get_next_decompressed_lit(const u8* data,
@@ -131,12 +120,10 @@ bool cc_get_next_decompressed_lit(const u8* data,
 
     if (*idx == 0) {
         *idx += cc_read_varlength(data + *idx, compr_size);
-        printf(" cc compr_size %i\n", *compr_size);
     }
     if (*idx == *compr_size) return false; // done
     u32 ilit;
     *idx += cc_read_varlength(data + *idx, &ilit);
-    printf("  cc read %u\n", ilit);
     ilit += *last;
     *last = ilit;
     *out = cc_decompress_lit(ilit);

@@ -88,10 +88,8 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
         u32 compr_size, idx = 0, last = 0;
-        printf("cc begin\n");
         int lit;
         while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) { // for each literal
-            printf("  next lit of #%lu: %i\n", hint_id, lit);
             const int var = lit > 0 ? lit : -lit;
             if (var_values->data[var] == 0) {
                 // Literal is unassigned
@@ -112,7 +110,6 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             }
             // All OK - literal is false, thus (virtually) removed from the clause
         }
-        printf("cc end\n");
         if (!ok) break; // error detected - stop
 
         // NO unit derived?
@@ -291,10 +288,8 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         // Iterate over the literals of the clause
         bool satisfied = false;
         u32 compr_size, idx = 0, last = 0;
-        printf("cc begin\n");
         int lit;
         while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) {
-            printf("  next lit: %i\n", lit);
             const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable
@@ -320,7 +315,6 @@ bool lrat_check_validate_sat(int* model, u64 size) {
                 break;
             }
         }
-        printf("cc end\n");
         // Clause NOT satisfied?
         if (MALLOB_UNLIKELY(!satisfied)) {
             // ERROR - unsatisfied clause(s) remain(s)
