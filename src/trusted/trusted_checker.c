@@ -65,8 +65,8 @@ void tc_init(const char* fifo_in, const char* fifo_out) {
 }
 
 void tc_end() {
-    free(buf_hints);
-    free(buf_lits);
+    int_vec_free(buf_lits);
+    u64_vec_free(buf_hints);
     fclose(output);
     fclose(input);
 }

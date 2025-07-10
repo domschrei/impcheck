@@ -14,8 +14,7 @@ struct TYPED(vec)* TYPED(vec_init)(u64 capacity) {
 
 void TYPED(vec_free)(struct TYPED(vec)* vec) {
     free(vec->data);
-    vec->size = 0;
-    vec->capacity = 0;
+    free(vec);
 }
 
 void TYPED(vec_reserve)(struct TYPED(vec)* vec, u64 new_cap) {

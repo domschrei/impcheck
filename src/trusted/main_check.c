@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
 
     tc_init(fifo_directives, fifo_feedback);
     int res = tc_run(check_model, lenient);
+    tc_end();
     fflush(stdout);
     return res;
 }
