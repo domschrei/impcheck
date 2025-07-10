@@ -7,6 +7,11 @@
 #include "trusted_utils.h"  // for trusted_utils_read_int, trusted_utils_log...
 #include "checker_interface.h"
 
+#if IMPCHECK_WRITE_DIRECTIVES
+#include <unistd.h>
+#include "../writer.h"
+#endif
+
 // Instantiate int_vec
 #define TYPE int
 #define TYPED(THING) int_ ## THING
@@ -172,6 +177,10 @@ int tc_run(bool check_model, bool lenient) {
             trusted_utils_log_err("Invalid directive!");
             break;
         }
+
+#if IMPCHECK_WRITE_DIRECTIVES
+        writer_flush();
+#endif
 
         if (MALLOB_UNLIKELY(!top_check_valid())) {
             if (!reported_error) {

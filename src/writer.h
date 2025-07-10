@@ -5,6 +5,7 @@
 
 #if IMPCHECK_WRITE_DIRECTIVES
 void writer_init(char* output_path);
+void writer_flush();
 void write_bool(bool b);
 void write_char(int c_int);
 void write_int(int i);
