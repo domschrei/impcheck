@@ -32,7 +32,7 @@ extern char trusted_utils_msgstr[512];
 void trusted_utils_log(const char* msg);
 void trusted_utils_log_err(const char* msg);
 
-void trusted_utils_exit_eof();
+void trusted_utils_exit_eof(void);
 
 void trusted_utils_try_match_arg(const char* arg, const char* opt, const char** out);
 void trusted_utils_try_match_flag(const char* arg, const char* opt, bool* out);

@@ -18,11 +18,11 @@ void trusted_utils_log_err(const char* msg) {
     printf("c [TRUSTED_CORE %i] [ERROR] %s\n", getpid(), msg);
 }
 
-void trusted_utils_exit_eof() {
+void trusted_utils_exit_eof(void) {
     trusted_utils_log("end-of-file - terminating");
     exit(0);
 }
-void exit_oom() {
+void exit_oom(void) {
     trusted_utils_log("allocation failed - terminating");
     exit(0);
 }

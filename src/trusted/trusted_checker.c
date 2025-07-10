@@ -69,7 +69,7 @@ void tc_init(const char* fifo_in, const char* fifo_out) {
     buf_hints = u64_vec_init(1 << 14);
 }
 
-void tc_end() {
+void tc_end(void) {
     int_vec_free(buf_lits);
     u64_vec_free(buf_hints);
     fclose(output);

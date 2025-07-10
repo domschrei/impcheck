@@ -37,7 +37,7 @@ void top_check_load(int lit) {
     valid &= lrat_check_load(lit);
 }
 
-bool top_check_end_load() {
+bool top_check_end_load(void) {
     u8* sig_from_chk;
     valid = valid && lrat_check_end_load(&sig_from_chk);
     if (!valid) return false;
@@ -97,4 +97,4 @@ bool top_check_validate_sat(int* model, u64 size, u8* out_signature_or_null) {
     return true;
 }
 
-bool top_check_valid() {return valid;}
+bool top_check_valid(void) {return valid;}
