@@ -4,6 +4,7 @@
 #include <stdio.h>          // for snprintf
 #include "clausecompress.h"
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
+#include "pointer_storage.h"
 #include "siphash.h"        // for siphash_digest, siphash_update
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
 
@@ -49,11 +50,24 @@ int* clause_init(const int* data, int nb_lits) {
     cls[nb_lits] = 0;
     return cls;
 }
-unsigned char* cclause_init(int* data, int nb_lits) {
+u8* cclause_init(int* data, int nb_lits) {
+    u8* out;
     int size = cc_prepare_clause_and_get_compressed_size(data, nb_lits);
-    unsigned char* out = trusted_utils_calloc(size, 1);
-    cc_compress_and_write_clause(data, nb_lits, size, out);
+    if (size <= 7) {
+        u8 inlineCls[8] = {0};
+        cc_compress_and_write_clause(data, nb_lits, size, inlineCls);
+        out = ptr_storage_create(inlineCls);
+    } else {
+        out = trusted_utils_calloc(size, 1);
+        cc_compress_and_write_clause(data, nb_lits, size, out);
+    }
     return out;
+}
+struct cclause_view get_cclause_view(const u8** cls) {
+    struct cclause_view view;
+    const void* data = ptr_storage_get((const void**) cls);
+    view = cc_get_compressed_view((const u8*) data);
+    return view;
 }
 
 void reset_assignments(void) {
@@ -78,7 +92,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Find the clause for this hint
         const u64 hint_id = hints[i];
-        unsigned char* cls = hash_table_find(clause_table, hint_id);
+        const u8* cls = hash_table_find(clause_table, hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
             snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
@@ -87,9 +101,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
-        u32 compr_size, idx = 0, last = 0;
+        struct cclause_view view = get_cclause_view(&cls);
         int lit;
-        while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) { // for each literal
+        while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
             const int var = lit > 0 ? lit : -lit;
             if (var_values->data[var] == 0) {
                 // Literal is unassigned
@@ -235,7 +249,7 @@ bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int
 bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     for (int i = 0; i < nb_ids; i++) {
         u64 id = ids[i];
-        unsigned char* cls = hash_table_find(clause_table, id);
+        u8* cls = hash_table_find(clause_table, id);
         if (!cls) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
@@ -244,7 +258,7 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
             // Do not delete original problem clauses to enable checking of a model
             continue;
         }
-        free(cls);
+        if (ptr_storage_is_real_pointer(cls)) free(cls);
         if (!hash_table_delete_last_found(clause_table)) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: Hash table error for ID %lu", id);
             return false;
@@ -287,9 +301,9 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         }
         // Iterate over the literals of the clause
         bool satisfied = false;
-        u32 compr_size, idx = 0, last = 0;
+        struct cclause_view view = get_cclause_view(&cls);
         int lit;
-        while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) {
+        while (cc_get_next_decompressed_lit(&view, &lit)) {
             const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable

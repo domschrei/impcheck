@@ -3,6 +3,8 @@
 
 #include "assert.h"
 #include "stdlib.h"
+#include "trusted_utils.h"
+#include "stdint.h"
 
 // -1 1  -2 2 -3  3 -4  4 -5  5 ...
 // v  v  v  v  v  v  v  v  v  v ...
@@ -11,32 +13,11 @@ u32 cc_compress_lit(int elit) {
     return 2 * abs(elit) - 1 - (elit < 0);
 }
 int cc_decompress_lit(u32 ilit) {
-    return (1 + ilit / 2) * (ilit % 2 == 1 ? 1 : -1);
+    return (1 + ilit / 2) * (2 * (ilit & 1) - 1);
 }
 
-u8 cc_nb_needed_bytes(int x) {
-    return 1 + (x >= 128) + (x >= 32768) + (x >= 8388608);
-}
-u8 cc_nb_needed_varlength_bytes(int x) {
-    return 1 + (x >= 128) + (x >= 16384) + (x >= 2097152) + (x >= 268435456);
-}
-
-u8 cc_write_fixed_bytes_int(int x, u8 nb_bytes, u8* out) {
-    u8 idx = 0;
-    if (nb_bytes >= 4) out[idx++] = ((x >> 24) & 0xff);
-    if (nb_bytes >= 3) out[idx++] = ((x >> 16) & 0xff);
-    if (nb_bytes >= 2) out[idx++] = ((x >> 8) & 0xff);
-    if (nb_bytes >= 1) out[idx++] = ((x >> 0) & 0xff);
-    return nb_bytes;
-}
-u8 cc_read_fixed_bytes_int(u8* in, u8 nb_bytes, int* out) {
-    *out = 0;
-    u8 inIdx = 0;
-    if (nb_bytes >= 4) *out += 16777216 * in[inIdx++];
-    if (nb_bytes >= 3) *out += 65536 * in[inIdx++];
-    if (nb_bytes >= 2) *out += 256 * in[inIdx++];
-    if (nb_bytes >= 1) *out += 1 * in[inIdx++];
-    return nb_bytes;
+u8 cc_nb_needed_varlength_bytes(u32 x) {
+    return 1 + (bool)(x>>7) + (bool)(x>>14) + (bool)(x>>21) + (bool)(x>>28);
 }
 
 u8 cc_write_varlength(u32 n, u8* out) {
@@ -76,22 +57,30 @@ u8 cc_read_varlength(const u8* in, u32* out) {
 }
 
 // sort unsigned integers in increasing order
-int qsort_compare( const void* a, const void* b) {
-    u32 int_a = * ( (u32*) a );
-    u32 int_b = * ( (u32*) b );
-    if ( int_a == int_b ) return 0;
-    else if ( int_a < int_b ) return -1;
-    else return 1;
+int qsort_compare(const void* a, const void* b) {
+    return *(u32*)a - *(u32*)b;
 }
-
+void insertion_sort(u32* arr, int size) {
+    for (int i = 1; i < size; i++) {
+        u32 key = arr[i];
+        int j = i - 1;
+        // Move elements of arr[0..i-1] that are greater than key
+        // to one position ahead of their current position
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j = j - 1;
+        }
+        arr[j + 1] = key;
+    }
+}
 int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
     // Compress literals in-place and then sort them in increasing order
     for (int i = 0; i < nb_lits; i++) {
-        int ilit = cc_compress_lit(lits[i]);
-        lits[i] = ilit;
+        lits[i] = cc_compress_lit(lits[i]);
     }
-    qsort(lits, nb_lits, sizeof(int), qsort_compare);
+    //qsort((u32*) lits, nb_lits, sizeof(u32), qsort_compare);
+    insertion_sort((u32*) lits, nb_lits);
 
     // Compute size of the output data with variable-length differential coding
     int size = 0;
@@ -109,23 +98,27 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 void cc_compress_and_write_clause(int* lits, int nb_lits, u32 compr_size, u8* out) {
     int idx = cc_write_varlength(compr_size, out);
     for (int i = 0; i < nb_lits; i++) {
-        int ilitWithDiff = lits[i];
-        idx += cc_write_varlength(ilitWithDiff, out+idx);
+        idx += cc_write_varlength(lits[i], out+idx);
     }
 }
 
-bool cc_get_next_decompressed_lit(const u8* data,
-        u32* compr_size, u32* idx, u32* last,
-        int* out) {
+struct cclause_view cc_get_compressed_view(const u8* data) {
+    struct cclause_view view;
+    view.data = data;
+    u32 compr_size;
+    u8 offset = cc_read_varlength(view.data, &compr_size);
+    view.end = view.data + compr_size;
+    view.data += offset;
+    view.last = 0;
+    return view;
+}
 
-    if (*idx == 0) {
-        *idx += cc_read_varlength(data + *idx, compr_size);
-    }
-    if (*idx == *compr_size) return false; // done
+bool cc_get_next_decompressed_lit(struct cclause_view* view, int* out) {
+    if (MALLOB_UNLIKELY(view->data == view->end)) return false; // done
     u32 ilit;
-    *idx += cc_read_varlength(data + *idx, &ilit);
-    ilit += *last;
-    *last = ilit;
+    view->data += cc_read_varlength(view->data, &ilit);
+    ilit += view->last;
+    view->last = ilit;
     *out = cc_decompress_lit(ilit);
     return true;
 }
