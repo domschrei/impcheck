@@ -8,7 +8,7 @@
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 #include "confirm.h"
 
-int error() {
+int error(void) {
     printf("s NOT VERIFIED\n");
     return 1;
 }

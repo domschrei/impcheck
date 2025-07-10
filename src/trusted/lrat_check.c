@@ -56,7 +56,7 @@ unsigned char* cclause_init(int* data, int nb_lits) {
     return out;
 }
 
-void reset_assignments() {
+void reset_assignments(void) {
     for (u64 i = 0; i < assigned_units->size; i++)
         var_values->data[assigned_units->data[i]] = 0;
     int_vec_clear(assigned_units);
@@ -253,7 +253,7 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     return true;
 }
 
-bool lrat_check_validate_unsat() {
+bool lrat_check_validate_unsat(void) {
     if (!done_loading) {
         snprintf(trusted_utils_msgstr, 512, "UNSAT validation illegal - loading formula was not concluded");
         return false;

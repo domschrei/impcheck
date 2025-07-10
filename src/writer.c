@@ -10,7 +10,7 @@ void writer_init(char* output_path) {
     f_writer = fopen(output_path, "w");
     if (!f_writer) trusted_utils_exit_eof();
 }
-void writer_flush() {
+void writer_flush(void) {
     if (!f_writer) return;
     fflush(f_writer);
 }

@@ -59,7 +59,7 @@ u64 inlen;
 u8* buf;
 unsigned char buflen = 0;
 
-void process_next_block() {
+void process_next_block(void) {
     m = U8TO64_LE(buf);
     v3 ^= m;
     for (i = 0; i < cROUNDS; ++i)
@@ -67,7 +67,7 @@ void process_next_block() {
     v0 ^= m;
 }
 
-void process_final_block() {
+void process_final_block(void) {
     const int left = inlen & 7;
     assert(left == buflen);
     u64 b = ((u64)inlen) << 56;
@@ -132,7 +132,7 @@ void siphash_init(const unsigned char* key_128bit) {
     buf = trusted_utils_malloc(8);
     if (kk) siphash_reset();
 }
-void siphash_reset() {
+void siphash_reset(void) {
     v0 = SH_UINT64_C(0x736f6d6570736575);
     v1 = SH_UINT64_C(0x646f72616e646f6d);
     v2 = SH_UINT64_C(0x6c7967656e657261);
@@ -166,11 +166,11 @@ void siphash_pad(u64 nb_bytes) {
     const unsigned char c = 0;
     for (u64 i = 0; i < nb_bytes; i++) siphash_update(&c, 1);
 }
-u8* siphash_digest() {
+u8* siphash_digest(void) {
     process_final_block();
     return out;
 }
-void siphash_free() {
+void siphash_free(void) {
     free(buf);
     free(out);
 }

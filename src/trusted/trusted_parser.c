@@ -32,13 +32,13 @@ int nb_vars = -1;
 int nb_cls = -1;
 
 
-void output_literal_buffer() {
+void output_literal_buffer(void) {
     siphash_update((unsigned char*) data->data, data->size * sizeof(int));
     trusted_utils_write_ints(data->data, data->size, f_out);
     int_vec_clear(data);
 }
 
-void append_integer() {
+void append_integer(void) {
     if (header) {
         if (nb_vars == -1) {
             nb_vars = num;
@@ -110,7 +110,7 @@ void tp_init(const char* filename, FILE* out) {
     data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
 }
 
-void tp_end() {
+void tp_end(void) {
     free(data);
 }
 
