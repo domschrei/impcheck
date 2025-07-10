@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>        // for bool, false, true
 #include <stdio.h>          // for snprintf
+#include "clausecompress.h"
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "siphash.h"        // for siphash_digest, siphash_update
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
@@ -48,6 +49,12 @@ int* clause_init(const int* data, int nb_lits) {
     cls[nb_lits] = 0;
     return cls;
 }
+unsigned char* cclause_init(int* data, int nb_lits) {
+    int size = cc_prepare_clause_and_get_compressed_size(data, nb_lits);
+    unsigned char* out = trusted_utils_calloc(size, 1);
+    cc_compress_and_write_clause(data, nb_lits, size, out);
+    return out;
+}
 
 void reset_assignments() {
     for (u64 i = 0; i < assigned_units->size; i++)
@@ -71,7 +78,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Find the clause for this hint
         const u64 hint_id = hints[i];
-        int* cls = (int*) hash_table_find(clause_table, hint_id);
+        unsigned char* cls = hash_table_find(clause_table, hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
             snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
@@ -80,9 +87,11 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
-        for (int lit_idx = 0; ; lit_idx++) { // for each literal ...
-            const int lit = cls[lit_idx];
-            if (lit == 0) break;           // ... until termination zero
+        u32 compr_size, idx = 0, last = 0;
+        printf("cc begin\n");
+        int lit;
+        while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) { // for each literal
+            printf("  next lit of #%lu: %i\n", hint_id, lit);
             const int var = lit > 0 ? lit : -lit;
             if (var_values->data[var] == 0) {
                 // Literal is unassigned
@@ -103,6 +112,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             }
             // All OK - literal is false, thus (virtually) removed from the clause
         }
+        printf("cc end\n");
         if (!ok) break; // error detected - stop
 
         // NO unit derived?
@@ -151,16 +161,27 @@ bool clauses_equivalent(int* left_cls, int* right_cls) {
     const int right_size = lit_idx;
     return left_size == right_size;
 }
+// Linear pass over compressed clause bytes, since they are "normalized" by compression
+bool cclauses_equivalent(unsigned char* left_cls, unsigned char* right_cls) {
+    int idx = 0;
+    while (true) {
+        if (left_cls[idx] == 0) return right_cls[idx] == 0;
+        if (right_cls[idx] == 0) return false;
+        if (left_cls[idx] != right_cls[idx]) return false;
+        idx++;
+    }
+    return true;
+}
 
-bool lrat_check_add_axiomatic_clause(u64 id, const int* lits, int nb_lits) {
-    int* cls = clause_init(lits, nb_lits);
+bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
+    unsigned char* cls = cclause_init(lits, nb_lits);
     bool ok = hash_table_insert(clause_table, id, cls);
     if (!ok) {
         if (lenient) {
             // In lenient mode, ignore the addition if and only if the clauses
             // are syntactically equivalent (except for literal ordering).
-            int* old_cls = (int*) hash_table_find(clause_table, id);
-            if (old_cls && clauses_equivalent(old_cls, cls)) {
+            unsigned char* old_cls = hash_table_find(clause_table, id);
+            if (old_cls && cclauses_equivalent(old_cls, cls)) {
                 ok = true;
             }
         }
@@ -181,12 +202,12 @@ void lrat_check_init(int nb_vars, bool opt_check_model, bool opt_lenient) {
 
 bool lrat_check_load(int lit) {
     if (lit == 0) {
-        if (!lrat_check_add_axiomatic_clause(id_to_add, clause_to_add->data, clause_to_add->size)) {
+        int_vec_push(clause_to_add, 0);
+        siphash_update((u8*) clause_to_add->data, clause_to_add->size*sizeof(int));
+        if (!lrat_check_add_axiomatic_clause(id_to_add, clause_to_add->data, clause_to_add->size - 1)) {
             return false;
         }
         id_to_add++;
-        int_vec_push(clause_to_add, 0);
-        siphash_update((u8*) clause_to_add->data, clause_to_add->size*sizeof(int));
         int_vec_clear(clause_to_add);
         return true;
     }
@@ -207,7 +228,7 @@ bool lrat_check_end_load(u8** out_sig) {
 }
 
 
-bool lrat_check_add_clause(u64 id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
+bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int nb_hints) {
     if (!check_clause(id, lits, nb_lits, hints, nb_hints)) {
         return false;
     }
@@ -217,7 +238,7 @@ bool lrat_check_add_clause(u64 id, const int* lits, int nb_lits, const u64* hint
 bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     for (int i = 0; i < nb_ids; i++) {
         u64 id = ids[i];
-        int* cls = hash_table_find(clause_table, id);
+        unsigned char* cls = hash_table_find(clause_table, id);
         if (!cls) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
@@ -261,7 +282,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     }
     // Check each original problem clause
     for (u64 id = 1; id <= nb_loaded_clauses; id++) {
-        const int* cls = (int*) hash_table_find(clause_table, id);
+        const unsigned char* cls = hash_table_find(clause_table, id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - clause not found
             snprintf(trusted_utils_msgstr, 512, "SAT validation: original ID %lu not found", id);
@@ -269,8 +290,11 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         }
         // Iterate over the literals of the clause
         bool satisfied = false;
-        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) {
-            const int lit = cls[lit_idx];
+        u32 compr_size, idx = 0, last = 0;
+        printf("cc begin\n");
+        int lit;
+        while (cc_get_next_decompressed_lit(cls, &compr_size, &idx, &last, &lit)) {
+            printf("  next lit: %i\n", lit);
             const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable
@@ -296,6 +320,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
                 break;
             }
         }
+        printf("cc end\n");
         // Clause NOT satisfied?
         if (MALLOB_UNLIKELY(!satisfied)) {
             // ERROR - unsatisfied clause(s) remain(s)

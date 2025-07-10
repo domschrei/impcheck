@@ -47,20 +47,20 @@ bool top_check_end_load() {
     return valid;
 }
 
-bool top_check_produce(unsigned long id, const int* literals, int nb_literals,
+bool top_check_produce(unsigned long id, int* literals, int nb_literals,
     const unsigned long* hints, int nb_hints, u8* out_sig_or_null) {
     
-    // forward clause to checker
-    valid &= lrat_check_add_clause(id, literals, nb_literals, hints, nb_hints);
-    if (!valid) return false;
     // compute signature if desired
     if (out_sig_or_null) {
         compute_clause_signature(id, literals, nb_literals, out_sig_or_null);
     }
+    // forward clause to checker
+    valid &= lrat_check_add_clause(id, literals, nb_literals, hints, nb_hints);
+    if (!valid) return false;
     return true;
 }
 
-bool top_check_import(unsigned long id, const int* literals, int nb_literals,
+bool top_check_import(unsigned long id, int* literals, int nb_literals,
     const u8* signature_data) {
     
     // verify signature

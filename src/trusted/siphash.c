@@ -4,6 +4,7 @@
 #include <stdbool.h>  // for true
 #include <stdlib.h>   // for free, abort
 #include <assert.h>   // for assert
+#include <unistd.h>
 
 #define cROUNDS 2
 #define dROUNDS 4
