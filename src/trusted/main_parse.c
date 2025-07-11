@@ -2,7 +2,11 @@
 #include <stdbool.h>         // for bool
 #include <stdio.h>           // for fopen, FILE
 #include <stdlib.h>          // for abort
+#if IMPCHECK_COMPRESS
+#include "trusted_compressing_parser.h"  // for tp_init, tp_parse
+#else
 #include "trusted_parser.h"  // for tp_init, tp_parse
+#endif
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 
 int main(int argc, char *argv[]) {

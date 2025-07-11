@@ -2,6 +2,7 @@
 #include "clausecompress.h"
 
 #include "assert.h"
+#include "sort.h"
 #include "stdlib.h"
 #include "trusted_utils.h"
 #include "stdint.h"
@@ -56,31 +57,13 @@ u8 cc_read_varlength(const u8* in, u32* out) {
     return idx;
 }
 
-// sort unsigned integers in increasing order
-int qsort_compare(const void* a, const void* b) {
-    return *(u32*)a - *(u32*)b;
-}
-void insertion_sort(u32* arr, int size) {
-    for (int i = 1; i < size; i++) {
-        u32 key = arr[i];
-        int j = i - 1;
-        // Move elements of arr[0..i-1] that are greater than key
-        // to one position ahead of their current position
-        while (j >= 0 && arr[j] > key) {
-            arr[j + 1] = arr[j];
-            j = j - 1;
-        }
-        arr[j + 1] = key;
-    }
-}
 int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
     // Compress literals in-place and then sort them in increasing order
     for (int i = 0; i < nb_lits; i++) {
         lits[i] = cc_compress_lit(lits[i]);
     }
-    //qsort((u32*) lits, nb_lits, sizeof(u32), qsort_compare);
-    insertion_sort((u32*) lits, nb_lits);
+    sort_ints(lits, nb_lits);
 
     // Compute size of the output data with variable-length differential coding
     u32 size = 0;

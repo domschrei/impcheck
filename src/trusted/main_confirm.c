@@ -3,8 +3,11 @@
 #include <stdio.h>           // for fopen, FILE
 #include <stdlib.h>          // for abort
 #include <string.h>
-
+#if IMPCHECK_COMPRESS
+#include "trusted_compressing_parser.h"  // for tp_init, tp_parse
+#else
 #include "trusted_parser.h"  // for tp_init, tp_parse
+#endif
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 #include "confirm.h"
 
