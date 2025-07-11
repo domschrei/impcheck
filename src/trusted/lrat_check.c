@@ -7,6 +7,7 @@
 #include "pointer_storage.h"
 #include "siphash.h"        // for siphash_digest, siphash_update
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
+#include "assert.h"
 
 // Instantiate int_vec
 #define TYPE int
@@ -22,9 +23,20 @@
 #undef TYPED
 #undef TYPE
 
-// The hash table where we keep all clauses and which uses most of our RAM.
-// We still use a power-of-two growth policy since this makes lookups faster.
+// Instantiate u64_vec
+#define TYPE u64
+#define TYPED(THING) u64_ ## THING
+#include "vec.h"
+#undef TYPED
+#undef TYPE
+
+// The hash table where we keep all learned clauses.
+// We use a power-of-two growth policy for fast lookups.
 struct hash_table* clause_table;
+// A plain vector where we keep all original problem clauses, indexed by their ID.
+// Since input clauses are dense w.r.t. their IDs, this is faster and more
+// space-efficient than also inserting them in the produced clauses hash table.  
+struct u64_vec* input_clauses;
 
 // Table of all variables with their current assignment (-1/0/1).
 // We perform all LRUP checks using one big vector of all variable polarities,
@@ -70,6 +82,27 @@ struct cclause_view get_cclause_view(const u8** cls) {
     return view;
 }
 
+u8* fetch_clause(u64 id) {
+    if (id <= nb_loaded_clauses) {
+        return (u8*) input_clauses->data[id-1];
+    }
+    return hash_table_find(clause_table, id);
+}
+bool free_clause(u64 id, u8* cls) {
+    bool original = id <= nb_loaded_clauses;
+    // Do not delete original problem clauses to enable checking of a model
+    if (original && check_model) return true;
+    // Avoid trying to free fake pointers with stored data
+    if (ptr_storage_is_real_pointer(cls)) free(cls);
+    if (original) {
+        input_clauses->data[id-1] = 0;
+    } else if (!hash_table_delete_last_found(clause_table)) {
+        snprintf(trusted_utils_msgstr, 512, "Clause deletion: Hash table error for ID %lu", id);
+        return false;
+    }
+    return true;
+}
+
 void reset_assignments(void) {
     for (u64 i = 0; i < assigned_units->size; i++)
         var_values->data[assigned_units->data[i]] = 0;
@@ -92,7 +125,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Find the clause for this hint
         const u64 hint_id = hints[i];
-        const u8* cls = hash_table_find(clause_table, hint_id);
+        const u8* cls = fetch_clause(hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
             snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
@@ -186,12 +219,17 @@ bool cclauses_equivalent(unsigned char* left_cls, unsigned char* right_cls) {
 
 bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
     unsigned char* cls = cclause_init(lits, nb_lits);
-    bool ok = hash_table_insert(clause_table, id, cls);
+    bool ok = true;
+    if (done_loading) ok = hash_table_insert(clause_table, id, cls);
+    else {
+        u64_vec_push(input_clauses, (u64) cls);
+        assert(id == input_clauses->size);
+    }
     if (!ok) {
         if (lenient) {
             // In lenient mode, ignore the addition if and only if the clauses
             // are syntactically equivalent (except for literal ordering).
-            unsigned char* old_cls = hash_table_find(clause_table, id);
+            unsigned char* old_cls = fetch_clause(id);
             if (old_cls && cclauses_equivalent(old_cls, cls)) {
                 ok = true;
             }
@@ -203,7 +241,8 @@ bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
 }
 
 void lrat_check_init(int nb_vars, bool opt_check_model, bool opt_lenient) {
-    clause_table = hash_table_init(16);
+    clause_table = hash_table_init(14);
+    input_clauses = u64_vec_init(1024);
     clause_to_add = int_vec_init(512);
     var_values = i8_vec_init(nb_vars+1);
     assigned_units = int_vec_init(512);
@@ -235,6 +274,7 @@ bool lrat_check_end_load(u8** out_sig) {
     *out_sig = siphash_digest();
     done_loading = true;
     nb_loaded_clauses = id_to_add-1;
+    u64_vec_shrink_to_fit(input_clauses);
     return true;
 }
 
@@ -249,20 +289,12 @@ bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int
 bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     for (int i = 0; i < nb_ids; i++) {
         u64 id = ids[i];
-        u8* cls = hash_table_find(clause_table, id);
+        u8* cls = fetch_clause(id);
         if (!cls) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
         }
-        if (check_model && id <= nb_loaded_clauses) {
-            // Do not delete original problem clauses to enable checking of a model
-            continue;
-        }
-        if (ptr_storage_is_real_pointer(cls)) free(cls);
-        if (!hash_table_delete_last_found(clause_table)) {
-            snprintf(trusted_utils_msgstr, 512, "Clause deletion: Hash table error for ID %lu", id);
-            return false;
-        }
+        if (!free_clause(id, cls)) return false;
     }
     return true;
 }
@@ -293,7 +325,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     }
     // Check each original problem clause
     for (u64 id = 1; id <= nb_loaded_clauses; id++) {
-        const unsigned char* cls = hash_table_find(clause_table, id);
+        const unsigned char* cls = fetch_clause(id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - clause not found
             snprintf(trusted_utils_msgstr, 512, "SAT validation: original ID %lu not found", id);

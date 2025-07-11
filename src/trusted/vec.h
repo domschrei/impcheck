@@ -19,3 +19,4 @@ void TYPED(vec_free)(struct TYPED(vec)* vec);
 void TYPED(vec_reserve)(struct TYPED(vec)* vec, u64 new_size);
 void TYPED(vec_push)(struct TYPED(vec)* vec, TYPE elem);
 void TYPED(vec_clear)(struct TYPED(vec)* vec);
+void TYPED(vec_shrink_to_fit)(struct TYPED(vec)* vec);

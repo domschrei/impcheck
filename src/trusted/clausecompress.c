@@ -83,20 +83,26 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
     insertion_sort((u32*) lits, nb_lits);
 
     // Compute size of the output data with variable-length differential coding
-    int size = 0;
-    int diff = 0;
+    u32 size = 0;
+    u32 last = 0;
     for (int i = 0; i < nb_lits; i++) {
-        int ilit = lits[i];
-        size += cc_nb_needed_varlength_bytes(ilit - diff);
-        lits[i] = ilit - diff;
-        diff = ilit;
+        u32 ilit = lits[i];
+        assert(ilit == 0 || ilit > last);
+        size += cc_nb_needed_varlength_bytes(ilit - last);
+        lits[i] = ilit - last;
+        last = ilit;
     }
-    size += cc_nb_needed_varlength_bytes(size);
+    // Somewhat awkward to find the correct number of bytes to have enough room for itself ...
+    u8 nbBytesForSize = 1;
+    if (cc_nb_needed_varlength_bytes(size+nbBytesForSize) > nbBytesForSize)
+        nbBytesForSize++;
+    assert(cc_nb_needed_varlength_bytes(size+nbBytesForSize) == nbBytesForSize);
+    size += nbBytesForSize;
     return size;
 }
 
 void cc_compress_and_write_clause(int* lits, int nb_lits, u32 compr_size, u8* out) {
-    int idx = cc_write_varlength(compr_size, out);
+    u32 idx = cc_write_varlength(compr_size, out);
     for (int i = 0; i < nb_lits; i++) {
         idx += cc_write_varlength(lits[i], out+idx);
     }
@@ -115,9 +121,11 @@ struct cclause_view cc_get_compressed_view(const u8* data) {
 
 bool cc_get_next_decompressed_lit(struct cclause_view* view, int* out) {
     if (MALLOB_UNLIKELY(view->data == view->end)) return false; // done
-    u32 ilit;
-    view->data += cc_read_varlength(view->data, &ilit);
-    ilit += view->last;
+    assert(view->data < view->end);
+    u32 diff;
+    view->data += cc_read_varlength(view->data, &diff);
+    assert(view->last == 0 || diff > 0);
+    u32 ilit = view->last + diff;
     view->last = ilit;
     *out = cc_decompress_lit(ilit);
     return true;

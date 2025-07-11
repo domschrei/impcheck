@@ -37,3 +37,9 @@ void TYPED(vec_push)(struct TYPED(vec)* vec, TYPE elem) {
 void TYPED(vec_clear)(struct TYPED(vec)* vec) {
     TYPED(vec_reserve)(vec, 0);
 }
+
+void TYPED(vec_shrink_to_fit)(struct TYPED(vec)* vec) {
+    if (vec->capacity == vec->size) return;
+    vec->data = (TYPE*) trusted_utils_realloc(vec->data, vec->size * sizeof(TYPE));
+    vec->capacity = vec->size;
+}
