@@ -30,6 +30,14 @@
 #undef TYPED
 #undef TYPE
 
+// If we compress clauses, each clause is a byte array or a single 64-bit data bundle
+// disguised as a pointer. Otherwise, each clause is a zero-terminated int array.
+#if IMPCHECK_COMPRESS
+#define CLSTYPE u8*
+#else
+#define CLSTYPE int*
+#endif
+
 // The hash table where we keep all learned clauses.
 // We use a power-of-two growth policy for fast lookups.
 struct hash_table* clause_table;
@@ -56,13 +64,8 @@ bool done_loading = false;
 bool unsat_proven = false;
 
 
-int* clause_init(const int* data, int nb_lits) {
-    int* cls = trusted_utils_calloc(nb_lits+1, sizeof(int));
-    for (int i = 0; i < nb_lits; i++) cls[i] = data[i];
-    cls[nb_lits] = 0;
-    return cls;
-}
-u8* cclause_init(int* data, int nb_lits) {
+CLSTYPE clause_init(int* data, int nb_lits) {
+#if IMPCHECK_COMPRESS
     u8* out;
     int size = cc_prepare_clause_and_get_compressed_size(data, nb_lits);
     if (size <= 7) {
@@ -74,7 +77,14 @@ u8* cclause_init(int* data, int nb_lits) {
         cc_compress_and_write_clause(data, nb_lits, size, out);
     }
     return out;
+#else
+    int* cls = trusted_utils_calloc(nb_lits+1, sizeof(int));
+    for (int i = 0; i < nb_lits; i++) cls[i] = data[i];
+    cls[nb_lits] = 0;
+    return cls;
+#endif
 }
+
 struct cclause_view get_cclause_view(const u8** cls) {
     struct cclause_view view;
     const void* data = ptr_storage_get((const void**) cls);
@@ -82,18 +92,24 @@ struct cclause_view get_cclause_view(const u8** cls) {
     return view;
 }
 
-u8* fetch_clause(u64 id) {
+CLSTYPE fetch_clause(u64 id) {
     if (id <= nb_loaded_clauses) {
-        return (u8*) input_clauses->data[id-1];
+        return (CLSTYPE) input_clauses->data[id-1];
     }
     return hash_table_find(clause_table, id);
 }
-bool free_clause(u64 id, u8* cls) {
+
+bool free_clause(u64 id, CLSTYPE cls) {
     bool original = id <= nb_loaded_clauses;
     // Do not delete original problem clauses to enable checking of a model
     if (original && check_model) return true;
+#if IMPCHECK_COMPRESS
     // Avoid trying to free fake pointers with stored data
-    if (ptr_storage_is_real_pointer(cls)) free(cls);
+    if (ptr_storage_is_real_pointer(cls))
+#else
+    if (true)
+#endif
+        free(cls);
     if (original) {
         input_clauses->data[id-1] = 0;
     } else if (!hash_table_delete_last_found(clause_table)) {
@@ -125,7 +141,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Find the clause for this hint
         const u64 hint_id = hints[i];
-        const u8* cls = fetch_clause(hint_id);
+        const CLSTYPE cls = fetch_clause(hint_id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - hint not found
             snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu not found", base_id, hint_id);
@@ -134,9 +150,14 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
+#if IMPCHECK_COMPRESS
         struct cclause_view view = get_cclause_view(&cls);
         int lit;
         while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
+#else
+        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
+            const int lit = cls[lit_idx];
+#endif
             const int var = lit > 0 ? lit : -lit;
             if (var_values->data[var] == 0) {
                 // Literal is unassigned
@@ -185,9 +206,21 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     return false;
 }
 
-// Quadratic check for clause equivalence - 
-// assuming that most imported clauses are rather short.
-bool clauses_equivalent(int* left_cls, int* right_cls) {
+bool clauses_equivalent(CLSTYPE left_cls, CLSTYPE right_cls) {
+    if (!left_cls || !right_cls) return false;
+#if IMPCHECK_COMPRESS
+    // Linear pass over compressed clause bytes, since they are "normalized" by compression
+    int idx = 0;
+    while (true) {
+        if (left_cls[idx] == 0) return right_cls[idx] == 0;
+        if (right_cls[idx] == 0) return false;
+        if (left_cls[idx] != right_cls[idx]) return false;
+        idx++;
+    }
+    return true;
+#else
+    // Quadratic check for clause equivalence -
+    // assuming that most imported clauses are rather short.
     int lit_idx = 0;
     for (; left_cls[lit_idx] != 0; lit_idx++) {
         const int left_lit = left_cls[lit_idx];
@@ -204,21 +237,11 @@ bool clauses_equivalent(int* left_cls, int* right_cls) {
     for (lit_idx = 0; right_cls[lit_idx] != 0; lit_idx++) {}
     const int right_size = lit_idx;
     return left_size == right_size;
-}
-// Linear pass over compressed clause bytes, since they are "normalized" by compression
-bool cclauses_equivalent(unsigned char* left_cls, unsigned char* right_cls) {
-    int idx = 0;
-    while (true) {
-        if (left_cls[idx] == 0) return right_cls[idx] == 0;
-        if (right_cls[idx] == 0) return false;
-        if (left_cls[idx] != right_cls[idx]) return false;
-        idx++;
-    }
-    return true;
+#endif
 }
 
 bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
-    unsigned char* cls = cclause_init(lits, nb_lits);
+    CLSTYPE cls = clause_init(lits, nb_lits);
     bool ok = true;
     if (done_loading) ok = hash_table_insert(clause_table, id, cls);
     else {
@@ -229,8 +252,7 @@ bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
         if (lenient) {
             // In lenient mode, ignore the addition if and only if the clauses
             // are syntactically equivalent (except for literal ordering).
-            unsigned char* old_cls = fetch_clause(id);
-            if (old_cls && cclauses_equivalent(old_cls, cls)) {
+            if (clauses_equivalent(fetch_clause(id), cls)) {
                 ok = true;
             }
         }
@@ -289,7 +311,7 @@ bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int
 bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     for (int i = 0; i < nb_ids; i++) {
         u64 id = ids[i];
-        u8* cls = fetch_clause(id);
+        CLSTYPE cls = fetch_clause(id);
         if (!cls) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
@@ -325,7 +347,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     }
     // Check each original problem clause
     for (u64 id = 1; id <= nb_loaded_clauses; id++) {
-        const unsigned char* cls = fetch_clause(id);
+        const CLSTYPE cls = fetch_clause(id);
         if (MALLOB_UNLIKELY(!cls)) {
             // ERROR - clause not found
             snprintf(trusted_utils_msgstr, 512, "SAT validation: original ID %lu not found", id);
@@ -333,9 +355,14 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         }
         // Iterate over the literals of the clause
         bool satisfied = false;
+#if IMPCHECK_COMPRESS
         struct cclause_view view = get_cclause_view(&cls);
         int lit;
         while (cc_get_next_decompressed_lit(&view, &lit)) {
+#else
+        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) {
+            const int lit = cls[lit_idx];
+#endif
             const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable
