@@ -77,11 +77,12 @@ void output_clauses(void) {
     for (u32 i = 0; i < clause_vecs_by_len->size; i++) {
         if (!clause_vecs_by_len->data[i]) continue;
 
+        u32 clslen = i+1;
         struct int_vec* v = (struct int_vec*) clause_vecs_by_len->data[i];
         assert(v->size > 0);
+        sort_objs(v->data, v->size / clslen, sizeof(int) * clslen, compare_uncompressed_lits);
 
         // Output and fingerprint each clause, with termination zeroes
-        u32 clslen = i+1;
         int* data = v->data;
         int zero = 0;
         while (data != v->data + v->size) {
