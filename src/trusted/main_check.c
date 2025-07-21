@@ -1,6 +1,7 @@
 
 #include <stdbool.h>          // for bool, false
 #include <stdio.h>            // for fflush, stdout
+#include "secret.h"
 #include "trusted_checker.h"  // for tc_init, tc_run
 #include "trusted_utils.h"    // for trusted_utils_try_match_arg, trusted_ut...
 #if IMPCHECK_WRITE_DIRECTIVES
@@ -10,14 +11,16 @@
 
 int main(int argc, char *argv[]) {
 
-    const char *fifo_directives = "", *fifo_feedback = "";
+    const char *fifo_directives = "", *fifo_feedback = "", *seed_str = "0";
     bool check_model = false, lenient = false;
     for (int i = 1; i < argc; i++) {
         trusted_utils_try_match_arg(argv[i], "-fifo-directives=", &fifo_directives);
         trusted_utils_try_match_arg(argv[i], "-fifo-feedback=", &fifo_feedback);
+        trusted_utils_try_match_arg(argv[i], "-key-seed=", &seed_str);
         trusted_utils_try_match_flag(argv[i], "-check-model", &check_model);
         trusted_utils_try_match_flag(argv[i], "-lenient", &lenient);
     }
+    generate_key(seed_str);
 
 #if IMPCHECK_WRITE_DIRECTIVES
     char output_path[512];
