@@ -1,5 +1,4 @@
 
-#include "secret.h"
 #include <stdbool.h>         // for bool
 #include <stdio.h>           // for fopen, FILE
 #include <stdlib.h>          // for abort
@@ -11,6 +10,7 @@
 #endif
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 #include "confirm.h"
+#include "keygen.h"
 
 int error(void) {
     printf("s NOT VERIFIED\n");

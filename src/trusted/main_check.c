@@ -1,13 +1,13 @@
 
 #include <stdbool.h>          // for bool, false
 #include <stdio.h>            // for fflush, stdout
-#include "secret.h"
 #include "trusted_checker.h"  // for tc_init, tc_run
 #include "trusted_utils.h"    // for trusted_utils_try_match_arg, trusted_ut...
 #if IMPCHECK_WRITE_DIRECTIVES
 #include <unistd.h>
 #include "../writer.h"
 #endif
+#include "keygen.h"
 
 int main(int argc, char *argv[]) {
 

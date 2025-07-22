@@ -24,6 +24,7 @@ add_executable(impcheck_parse
     src/trusted/clausecompress.c
     src/trusted/sort.c
     src/trusted/hash.c
+    src/trusted/keygen.c
     src/trusted/secret.c
     src/trusted/siphash.c
     src/trusted/trusted_utils.c
@@ -37,6 +38,7 @@ add_executable(impcheck_check
     src/trusted/sort.c
     src/trusted/confirm.c
     src/trusted/hash.c
+    src/trusted/keygen.c
     src/trusted/lrat_check.c
     src/trusted/pointer_storage.c
     src/trusted/secret.c
@@ -52,6 +54,7 @@ add_executable(impcheck_confirm
     src/trusted/clausecompress.c
     src/trusted/confirm.c
     src/trusted/hash.c
+    src/trusted/keygen.c
     src/trusted/secret.c
     src/trusted/siphash.c
     src/trusted/sort.c

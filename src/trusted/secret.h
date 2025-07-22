@@ -10,5 +10,3 @@
 // should not have the particular key in memory (to rule out the 
 // possibility of such an actor re-computing a signature).
 extern unsigned char SECRET_KEY[];
-
-void generate_key(const char* seed_str);
