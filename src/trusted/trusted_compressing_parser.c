@@ -43,12 +43,14 @@ int nb_vars = -1;
 int nb_cls = -1;
 
 
-int compare_uncompressed_lits(const void* a, const void* b) {
-    u32 compr_a = cc_compress_lit(* (int*) a);
-    u32 compr_b = cc_compress_lit(* (int*) b);
-    return compr_a - compr_b;
+// Comparator for external literals that sorts them according to their internal representations.
+int compare_external_lits(const void* a, const void* b) {
+    u32 ilit_a = cc_internalize_lit(* (int*) a);
+    u32 ilit_b = cc_internalize_lit(* (int*) b);
+    return ilit_a - ilit_b;
 }
 
+// Handle a fully parsed clause and insert it into the internal data structures.
 void process_clause(void) {
 
     // Where to insert the clause?
@@ -63,24 +65,31 @@ void process_clause(void) {
     // Retrieve the vector to append to
     struct int_vec* v = (struct int_vec*) clause_vecs_by_len->data[vec_idx];
 
-    sort_objs(cls_data->data, clslen, sizeof(int), compare_uncompressed_lits);
+    // Sort literals in clause ascendingly according to their internal representations
+    sort_objs(cls_data->data, clslen, sizeof(int), compare_external_lits);
 
-    // Append to the vector
+    // Append clause to the vector of clause literals
     for (u32 i = 0; i < clslen; i++) {
         int_vec_push(v, cls_data->data[i]);
     }
+
+    // Clear buffer for next clause
     int_vec_clear(cls_data);
 }
 
+// Outputs the parsed formula in a (semi-)normalized form.
 void output_clauses(void) {
 
+    // Iterate over all clause lengths
     for (u32 i = 0; i < clause_vecs_by_len->size; i++) {
         if (!clause_vecs_by_len->data[i]) continue;
 
+        // There are some clauses of this length
         u32 clslen = i+1;
         struct int_vec* v = (struct int_vec*) clause_vecs_by_len->data[i];
         assert(v->size > 0);
-        sort_objs(v->data, v->size / clslen, sizeof(int) * clslen, compare_uncompressed_lits);
+        // Sort clauses according to the internal representations of their first literals
+        sort_objs(v->data, v->size / clslen, sizeof(int) * clslen, compare_external_lits);
 
         // Output and fingerprint each clause, with termination zeroes
         int* data = v->data;
@@ -93,10 +102,12 @@ void output_clauses(void) {
             data += clslen;
         }
 
+        // Free vector associated with this clause length
         int_vec_free(v);
     }
 }
 
+// Process a single parsed integer in "num".
 void append_integer(void) {
     if (header) {
         if (nb_vars == -1) {
@@ -120,6 +131,7 @@ void append_integer(void) {
     began_num = false;
 }
 
+// Process a single read character.
 bool process(char c) {
 
     if (comment && c != '\n' && c != '\r') return false;

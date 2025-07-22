@@ -10,10 +10,10 @@
 // -1 1  -2 2 -3  3 -4  4 -5  5 ...
 // v  v  v  v  v  v  v  v  v  v ...
 // 0  1  2  3  4  5  6  7  8  9 ...
-u32 cc_compress_lit(int elit) {
+u32 cc_internalize_lit(int elit) {
     return 2 * abs(elit) - 1 - (elit < 0);
 }
-int cc_decompress_lit(u32 ilit) {
+int cc_externalize_lit(u32 ilit) {
     return (1 + ilit / 2) * (2 * (ilit & 1) - 1);
 }
 
@@ -59,9 +59,9 @@ u8 cc_read_varlength(const u8* in, u32* out) {
 
 int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
-    // Compress literals in-place and then sort them in increasing order
+    // Internalize literals in-place and then sort them in increasing order
     for (int i = 0; i < nb_lits; i++) {
-        lits[i] = cc_compress_lit(lits[i]);
+        lits[i] = cc_internalize_lit(lits[i]);
     }
     sort_ints(lits, nb_lits);
 
@@ -110,6 +110,6 @@ bool cc_get_next_decompressed_lit(struct cclause_view* view, int* out) {
     assert(view->last == 0 || diff > 0);
     u32 ilit = view->last + diff;
     view->last = ilit;
-    *out = cc_decompress_lit(ilit);
+    *out = cc_externalize_lit(ilit);
     return true;
 }

@@ -4,8 +4,8 @@
 #include "trusted_utils.h"
 #include <stdbool.h>
 
-u32 cc_compress_lit(int elit);
-int cc_decompress_lit(u32 ilit);
+u32 cc_internalize_lit(int elit);
+int cc_externalize_lit(u32 ilit);
 
 u8 cc_nb_needed_varlength_bytes(u32 x);
 
