@@ -12,11 +12,11 @@ if len(sys.argv) > 1:
     random.seed(sys.argv[1])
 
 f = open("src/trusted/secret.c", 'w')
-f.write("\n#include \"secret.h\"\n\nconst unsigned char SECRET_KEY[] = {\n")
+f.write("\n#include \"secret.h\"\n\nunsigned char SECRET_KEY[] = {\n")
 for x in range(2):
-    f.write("    ")
+    f.write("   ")
     for i in range(8):
         r = random.randint(0, 255)
-        f.write(f"{r}, ")
+        f.write(f" {r},")
     f.write("\n");
 f.write("};\n")
