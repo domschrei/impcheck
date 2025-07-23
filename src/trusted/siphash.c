@@ -127,9 +127,12 @@ void process_final_block(void) {
 }
 
 void siphash_init(const unsigned char* key_128bit) {
-    kk = key_128bit;
     out = trusted_utils_malloc(128 / 8);
     buf = trusted_utils_malloc(8);
+    siphash_reinit(key_128bit);
+}
+void siphash_reinit(const unsigned char* key_128bit) {
+    kk = key_128bit;
     if (kk) siphash_reset();
 }
 void siphash_reset(void) {
