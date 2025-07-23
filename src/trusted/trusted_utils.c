@@ -12,10 +12,10 @@
 char trusted_utils_msgstr[512] = "";
 
 void trusted_utils_log(const char* msg) {
-    printf("c [TRUSTED_CORE %i] %s\n", getpid(), msg);
+    printf("c [IMPCHK %i] %s\n", getpid(), msg);
 }
 void trusted_utils_log_err(const char* msg) {
-    printf("c [TRUSTED_CORE %i] [ERROR] %s\n", getpid(), msg);
+    printf("c [IMPCHK %i] [ERROR] %s\n", getpid(), msg);
 }
 
 void trusted_utils_exit_eof(void) {
