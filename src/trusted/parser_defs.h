@@ -1,0 +1,7 @@
+
+#pragma once
+
+#include <stdint.h>
+
+#define IMPCHECK_MARKER_ASSUMPTIONS INT32_MAX
+#define IMPCHECK_MARKER_ENDOFINCREMENT INT32_MIN

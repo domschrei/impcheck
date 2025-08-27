@@ -13,6 +13,9 @@ endif()
 set(src_parse "src/trusted/trusted_parser.c")
 if(IMPCHECK_COMPRESS EQUAL 1)
     add_definitions("-DIMPCHECK_COMPRESS=1")
+endif()
+if(IMPCHECK_COMPRESS EQUAL 2)
+    add_definitions("-DIMPCHECK_COMPRESS=1")
     set(src_parse "src/trusted/trusted_compressing_parser.c")
 endif()
 
@@ -23,6 +26,7 @@ add_executable(impcheck_parse
     src/writer.c
     src/trusted/clausecompress.c
     src/trusted/sort.c
+    src/trusted/confirm.c
     src/trusted/hash.c
     src/trusted/keygen.c
     src/trusted/secret.c
@@ -30,6 +34,8 @@ add_executable(impcheck_parse
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
     ${src_parse}
+    src/trusted/trusted_parser_main.c
+    src/trusted/signature_trace.c
     src/trusted/main_parse.c
 )
 add_executable(impcheck_check 
@@ -61,6 +67,8 @@ add_executable(impcheck_confirm
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
     ${src_parse}
+    src/trusted/trusted_parser_main.c
+    src/trusted/signature_trace.c
     src/trusted/main_confirm.c
 )
 

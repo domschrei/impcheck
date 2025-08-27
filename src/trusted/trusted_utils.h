@@ -24,7 +24,8 @@ typedef unsigned int u32;
 typedef unsigned char u8;
 
 #define SIG_SIZE_BYTES 16
-typedef u8 signature[SIG_SIZE_BYTES];
+struct data128_t {u64 low; u64 high;};
+#define SIG_TYPE struct data128_t
 #define TRUSTED_CHK_MAX_BUF_SIZE (1<<14)
 
 extern char trusted_utils_msgstr[512];
@@ -44,6 +45,7 @@ void* trusted_utils_malloc(u64 size);
 void* trusted_utils_realloc(void* from, u64 new_size);
 void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj);
 
+void trusted_utils_read_objs(void* data, size_t size_per_obj, size_t nb_objs, FILE* file);
 bool trusted_utils_read_bool(FILE* file);
 int trusted_utils_read_char(FILE* file);
 int trusted_utils_read_int(FILE* file);

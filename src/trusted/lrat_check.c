@@ -6,6 +6,7 @@
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "pointer_storage.h"
 #include "siphash.h"        // for siphash_digest, siphash_update
+#include "sort.h"
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
 #include "assert.h"
 
@@ -55,13 +56,17 @@ struct i8_vec* var_values;
 // We remember the set variables in a stack to reset them later.
 struct int_vec* assigned_units;
 
+bool first_load = true;
 bool check_model;
 bool lenient;
 u64 id_to_add = 1;
 u64 nb_loaded_clauses = 0;
 struct int_vec* clause_to_add;
 bool done_loading = false;
-bool unsat_proven = false;
+SIG_TYPE last_f_sig;
+
+int* a_ptr;
+int nb_assumptions = 0;
 
 
 CLSTYPE clause_init(int* data, int nb_lits) {
@@ -119,9 +124,18 @@ bool free_clause(u64 id, CLSTYPE cls) {
     return true;
 }
 
+signed char get_var_value(u32 v) {
+    while (v >= var_values->size) i8_vec_push(var_values, 0);
+    return var_values->data[v];
+}
+void set_var_value(u32 v, signed char val) {
+    while (v >= var_values->size) i8_vec_push(var_values, 0);
+    var_values->data[v] = val;
+}
+
 void reset_assignments(void) {
     for (u64 i = 0; i < assigned_units->size; i++)
-        var_values->data[assigned_units->data[i]] = 0;
+        set_var_value(assigned_units->data[i], 0);
     int_vec_clear(assigned_units);
 }
 
@@ -131,7 +145,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     // Assume the negation of each literal in the new clause
     for (int i = 0; i < nb_lits; i++) {
         const int var = lits[i] > 0 ? lits[i] : -lits[i];
-        var_values->data[var] = lits[i]>0 ? -1 : 1; // negated
+        set_var_value(var, lits[i]>0 ? -1 : 1); // negated
         int_vec_push(assigned_units, var); // remember to reset later
     }
 
@@ -159,7 +173,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             const int lit = cls[lit_idx];
 #endif
             const int var = lit > 0 ? lit : -lit;
-            if (var_values->data[var] == 0) {
+            if (get_var_value(var) == 0) {
                 // Literal is unassigned
                 if (MALLOB_UNLIKELY(new_unit != 0)) {
                     // ERROR - multiple unassigned literals in hint clause!
@@ -170,7 +184,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 continue;
             }
             // Literal is fixed
-            const bool sign = var_values->data[var]>0;
+            const bool sign = get_var_value(var) > 0;
             if (MALLOB_UNLIKELY(sign == (lit>0))) {
                 // ERROR - clause is satisfied, so it is not a correct hint
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: dependency %lu is satisfied", base_id, hint_id);
@@ -195,7 +209,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
         }
         // Insert the new derived unit clause
         int var = new_unit > 0 ? new_unit : -new_unit;
-        var_values->data[var] = new_unit>0 ? 1 : -1;
+        set_var_value(var, new_unit>0 ? 1 : -1);
         int_vec_push(assigned_units, var); // remember to reset later
     }
 
@@ -206,9 +220,19 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     return false;
 }
 
-bool clauses_equivalent(CLSTYPE left_cls, CLSTYPE right_cls) {
+bool clauses_equivalent(const CLSTYPE left_cls, const CLSTYPE right_cls) {
     if (!left_cls || !right_cls) return false;
+    if (ptr_storage_is_real_pointer(left_cls) != ptr_storage_is_real_pointer(right_cls)) return false;
 #if IMPCHECK_COMPRESS
+    const CLSTYPE left;
+    const CLSTYPE right;
+    if (!ptr_storage_is_real_pointer(left_cls)) {
+        // Fabricated pointers: point them to their own previous "address" data
+        left = left_cls;
+        left_cls = (const CLSTYPE) &left;
+        right = right_cls;
+        right_cls = (const CLSTYPE) &right;
+    }
     // Linear pass over compressed clause bytes, since they are "normalized" by compression
     int idx = 0;
     while (true) {
@@ -258,18 +282,28 @@ bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
         }
         if (!ok) snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
     }
-    else if (nb_lits == 0) unsat_proven = true; // added top-level empty clause!
     return ok;
 }
 
-void lrat_check_init(int nb_vars, bool opt_check_model, bool opt_lenient) {
+void lrat_check_init(bool opt_check_model, bool opt_lenient) {
     clause_table = hash_table_init(14);
     input_clauses = u64_vec_init(1024);
     clause_to_add = int_vec_init(512);
-    var_values = i8_vec_init(nb_vars+1);
+    var_values = i8_vec_init(512);
     assigned_units = int_vec_init(512);
     check_model = opt_check_model;
     lenient = opt_lenient;
+}
+
+void lrat_check_begin_load(void) {
+    done_loading = false;
+    if (first_load) {
+        first_load = false;
+    } else {
+        // Bootstrap new increment signature with the last one's
+        siphash_reset();
+        siphash_update((u8*) &last_f_sig, SIG_SIZE_BYTES);
+    }
 }
 
 bool lrat_check_load(int lit) {
@@ -287,16 +321,23 @@ bool lrat_check_load(int lit) {
     return true;
 }
 
-bool lrat_check_end_load(u8** out_sig) {
+bool lrat_check_end_load(u8** out_sig, int* a, int size) {
     if (clause_to_add->size > 0) {
         snprintf(trusted_utils_msgstr, 512, "literals left in unterminated clause");
         return false;
     }
     siphash_pad(2); // two-byte padding for formula signature input
     *out_sig = siphash_digest();
+    trusted_utils_copy_bytes((u8*) &last_f_sig, *out_sig, SIG_SIZE_BYTES);
+
     done_loading = true;
     nb_loaded_clauses = id_to_add-1;
-    u64_vec_shrink_to_fit(input_clauses);
+    //u64_vec_shrink_to_fit(input_clauses);
+
+    a_ptr = a;
+    nb_assumptions = size;
+    sort_ints(a_ptr, nb_assumptions);
+
     return true;
 }
 
@@ -321,15 +362,52 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
     return true;
 }
 
-bool lrat_check_validate_unsat(void) {
+bool lrat_check_validate_unsat(u64 id, const int* failed, int size) {
     if (!done_loading) {
         snprintf(trusted_utils_msgstr, 512, "UNSAT validation illegal - loading formula was not concluded");
         return false;
     }
-    if (!unsat_proven) {
-        snprintf(trusted_utils_msgstr, 512, "UNSAT validation unsuccessful - did not derive or import empty clause");
+
+    // Copy failed assumptions into its own array so that we can manipulate it
+    int* copy_failed = trusted_utils_malloc(size * sizeof(int));
+    trusted_utils_copy_bytes((u8*) copy_failed, (u8*) failed, size * sizeof(int));
+    sort_ints(copy_failed, size);
+
+    // Check that all failed literals are assumptions of the current call
+    int aidx = 0;
+    for (int fidx = 0; fidx < size; fidx++) {
+        int lit = copy_failed[fidx];
+        while (aidx < nb_assumptions && a_ptr[aidx] != lit) aidx++;
+        if (aidx == nb_assumptions) {
+            // Failed literal was not one of the assumptions!
+            snprintf(trusted_utils_msgstr, 512, "UNSAT validation: failed lit %i not an assumption!", lit);
+            return false;
+        }
+    }
+
+    // Construct a clause from the negated failed literals
+    for (int i = 0; i < size; i++) copy_failed[i] *= -1;
+    CLSTYPE cls_failed = clause_init(copy_failed, size);
+#if !IMPCHECK_COMPRESS 
+    sort_ints(cls_failed, size);
+#endif
+
+    // Fetch referenced conclusion clause
+    const CLSTYPE cls = fetch_clause(id);
+    if (!cls) {
+        snprintf(trusted_utils_msgstr, 512, "UNSAT validation: ID %lu not found", id);
         return false;
     }
+
+    // Check syntactical equivalence of clauses
+    if (!clauses_equivalent(cls, cls_failed)) {
+        snprintf(trusted_utils_msgstr, 512,
+            "UNSAT validation: failed lits not matching conclusion clause %lu!", id);
+        return false;
+    }
+
+    free(copy_failed);
+    if (ptr_storage_is_real_pointer(cls_failed)) free(cls_failed);
     return true;
 }
 

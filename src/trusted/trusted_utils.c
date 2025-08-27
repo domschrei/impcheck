@@ -118,8 +118,8 @@ void trusted_utils_read_uls(u64* data, u64 nb_uls, FILE* file) {
 #endif
 }
 void trusted_utils_read_sig(u8* out_sig, FILE* file) {
-    signature dummy;
-    if (!out_sig) out_sig = dummy;
+    SIG_TYPE dummy;
+    if (!out_sig) out_sig = (u8*) &dummy;
     trusted_utils_read_objs(out_sig, sizeof(int), 4, file);
 #ifdef IMPCHECK_WRITE_DIRECTIVES
     write_sig(out_sig);

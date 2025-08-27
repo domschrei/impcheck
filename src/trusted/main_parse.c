@@ -2,29 +2,27 @@
 #include <stdbool.h>         // for bool
 #include <stdio.h>           // for fopen, FILE
 #include <stdlib.h>          // for abort
-#if IMPCHECK_COMPRESS
-#include "trusted_compressing_parser.h"  // for tp_init, tp_parse
-#else
 #include "trusted_parser.h"  // for tp_init, tp_parse
-#endif
 #include "trusted_utils.h"   // for trusted_utils_begins_with
 #include "keygen.h"
 
 int main(int argc, char *argv[]) {
 
-    const char *formula_input = "", *fifo_parsed_formula = "", *seed_str = "0";
+    const char *formula_input = "", *fifo_parsed_formula = "", *seed_str = "0", *inputlog = "";
     for (int i = 0; i < argc; i++) {
         trusted_utils_try_match_arg(argv[i], "-formula-input=", &formula_input);
         trusted_utils_try_match_arg(argv[i], "-fifo-parsed-formula=", &fifo_parsed_formula);
         trusted_utils_try_match_arg(argv[i], "-key-seed=", &seed_str);
+        trusted_utils_try_match_arg(argv[i], "-input-log=", &inputlog);
     }
     generate_key(seed_str);
 
     // Parse
     FILE* source = fopen(fifo_parsed_formula, "w");
-    tp_init(formula_input, source);
-    u8* sig;
-    bool ok = tp_parse(&sig);
+    FILE* f_inputlog = 0;
+    if (inputlog) f_inputlog = fopen(inputlog, "w");
+    tp_init(formula_input, source, false, f_inputlog);
+    bool ok = tp_parse();
     if (!ok) abort();
     return 0;
 }

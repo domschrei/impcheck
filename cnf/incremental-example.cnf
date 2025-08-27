@@ -1,0 +1,17 @@
+p cnf 4 0
+-1 3 4 0
+-1 3 -4 0
+-2 -3 4 0
+-2 -3 -4 0
+a 1 2 0
+c s UNSATISFIABLE
+c f 1 2 0
+-1 2 0
+1 -2 0
+a 0
+c s SATISFIABLE
+c v -1 -2 -3 -4 0
+1 2 0
+a 0
+c s UNSATISFIABLE
+c f 0

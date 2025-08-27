@@ -24,3 +24,9 @@
 #include "vec.c"
 #undef TYPED
 #undef TYPE
+
+#define TYPE SIG_TYPE
+#define TYPED(THING) sig_ ## THING
+#include "vec.c"
+#undef TYPED
+#undef TYPE

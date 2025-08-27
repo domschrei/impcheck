@@ -6,10 +6,10 @@
 // system's endianness. For specifics, examine the methods
 // trusted_utils_{read,write}* in trusted_utils.c.
 
-// Initialize and begin the loading stage.
-// IN: #vars (int); 128-bit signature of the formula (from trusted parser)
+// Initialize and begin the loading stage OF A CERTAIN INCREMENT.
+// IN: 128-bit signature of the formula (from trusted parser)
 // OUT: OK
-#define TRUSTED_CHK_INIT 'B'
+#define TRUSTED_CHK_BEGIN_LOAD 'B'
 
 // Load a chunk of the original problem formula.
 // IN: int k; sequence of k literals.
@@ -17,7 +17,7 @@
 #define TRUSTED_CHK_LOAD 'L'
 
 // End the loading stage; verify the signature.
-// IN: (void)
+// IN: int k; sequence of k assumption literals
 // OUT: OK
 #define TRUSTED_CHK_END_LOAD 'E'
 
@@ -29,7 +29,7 @@
 #define TRUSTED_CHK_CLS_PRODUCE 'a'
 
 // Import a clause from another solver.
-// IN: 64-bit ID; int k; sequence of k literals; 128-bit signature.
+// IN: 64-bit ID; int k; sequence of k literals; 128-bit signature; int rev.
 // OUT: OK
 #define TRUSTED_CHK_CLS_IMPORT 'i'
 
@@ -39,7 +39,7 @@
 #define TRUSTED_CHK_CLS_DELETE 'd'
 
 // Confirm that the formula is proven unsatisfiable.
-// IN: (none)
+// IN: 64-bit ID; int k; sequence of k failed assumption literals (falsified by the referenced clause)
 // OUT: OK
 #define TRUSTED_CHK_VALIDATE_UNSAT 'V'
 

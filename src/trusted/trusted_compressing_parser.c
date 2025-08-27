@@ -1,9 +1,10 @@
 
+#include <stdint.h>
 #include <stdbool.h>        // for false, bool, true
 #include <stdio.h>          // for FILE, fgetc_unlocked, fopen, EOF
 #include <stdlib.h>         // for abort, free
-#include "secret.h"         // for SECRET_KEY
-#include "siphash.h"        // for siphash_digest, siphash_init, siphash_update
+#include "parser_defs.h"
+#include "siphash.h"        // for siphash_digest, siphash_update
 #include "sort.h"
 #include "trusted_utils.h"  // for trusted_utils_write_int, trusted_utils_wr...
 #include "assert.h"
@@ -23,15 +24,17 @@
 #undef TYPED
 #undef TYPE
 
-FILE* f;
 FILE* f_out;
 
 struct u64_vec* clause_vecs_by_len;
 
 struct int_vec* cls_data;
+struct int_vec* asmpt_data;
 
 bool comment = false;
 bool header = false;
+bool in_assumptions = false;
+bool increment_finished = false;
 bool input_finished = false;
 bool input_invalid = false;
 bool began_num = false;
@@ -107,6 +110,13 @@ void output_clauses(void) {
     }
 }
 
+void output_assumptions(void) {
+    if (asmpt_data->size == 0) return;
+    // Assumptions separator
+    trusted_utils_write_int(IMPCHECK_MARKER_ASSUMPTIONS, f_out);
+    trusted_utils_write_ints(asmpt_data->data, asmpt_data->size, f_out);
+}
+
 // Process a single parsed integer in "num".
 void append_integer(void) {
     if (header) {
@@ -124,33 +134,47 @@ void append_integer(void) {
     }
 
     const int lit = sign * num;
-    if (lit == 0) process_clause();
-    else int_vec_push(cls_data, lit);
+    if (in_assumptions) {
+        int_vec_push(asmpt_data, lit);
+        if (lit == 0) {
+            increment_finished = true;
+            in_assumptions = false;
+        }
+    } else {
+        if (lit == 0) process_clause();
+        else int_vec_push(cls_data, lit);
+    }
     num = 0;
     sign = 1;
     began_num = false;
 }
 
 // Process a single read character.
-bool process(char c) {
+bool tp_inner_process(char c) {
 
     if (comment && c != '\n' && c != '\r') return false;
 
     signed char uc = *((signed char*) &c);
     switch (uc) {
     case EOF:
+        if (began_num) append_integer();
+        increment_finished = true;
         input_finished = true;
-        return true;
     case '\n':
     case '\r':
         comment = false;
         if (began_num) append_integer();
+        in_assumptions = false;
         break;
     case 'p':
-        header = true;
-        break;
+        //header = true;
+        //break;
     case 'c':
         if (!header) comment = true;
+        break;
+    case 'a':
+        assert(!in_assumptions);
+        in_assumptions = true;
         break;
     case ' ':
         if (began_num) append_integer();
@@ -168,32 +192,29 @@ bool process(char c) {
     default:
         break;
     }
+
+    if (increment_finished) {
+        increment_finished = false;
+        return true;
+    }
     return false;
 }
 
-
-void tp_init(const char* filename, FILE* out) {
-    siphash_init(SECRET_KEY);
-    f = fopen(filename, "r");
-    f_out = out;
+void tp_inner_init(FILE* f) {
+    f_out = f;
     cls_data = int_vec_init(64);
+    asmpt_data = int_vec_init(64);
     clause_vecs_by_len = u64_vec_init(0);
 }
 
-void tp_end(void) {
-    int_vec_free(cls_data);
-    u64_vec_free(clause_vecs_by_len);
+bool tp_inner_input_finished(void) {return input_finished;}
+bool tp_inner_input_valid(void) {return !input_invalid;}
+
+void tp_inner_output(void) {
+    output_clauses();
 }
 
-bool tp_parse(u8** sig) {
-    while (true) {
-        int c_int = UNLOCKED_IO(fgetc)(f);
-        if (process((char) c_int)) break;
-    }
-    if (began_num) append_integer();
-    output_clauses();
-    siphash_pad(2); // two-byte padding for formula signature input
-    *sig = siphash_digest();
-    trusted_utils_write_sig(*sig, f_out);
-    return input_finished && !input_invalid;
+void tp_inner_end(void) {
+    int_vec_free(cls_data);
+    u64_vec_free(clause_vecs_by_len);
 }
