@@ -29,6 +29,7 @@
 FILE* input; // named pipe
 FILE* output; // named pipe
 SIG_TYPE formula_sig; // formula signature
+int revision = -1; // counter for incremental solving
 
 bool do_logging = true;
 
@@ -160,6 +161,7 @@ int tc_run(bool check_model, bool lenient) {
             int nb_assumptions = trusted_utils_read_int(input);
             read_assumptions(nb_assumptions);
             say_with_flush(top_check_end_load(assumptions->data, nb_assumptions));
+            revision++;
 
         } else if (c == TRUSTED_CHK_VALIDATE_UNSAT) {
 
@@ -171,7 +173,11 @@ int tc_run(bool check_model, bool lenient) {
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
             UNLOCKED_IO(fflush)(output);
-            if (res) trusted_utils_log("UNSAT validated");
+            if (res) {
+                snprintf(trusted_utils_msgstr, 512, "rev. %i : UNSAT validated", revision);
+                trusted_utils_log(trusted_utils_msgstr);
+            }
+            free(failed);
 
         } else if (c == TRUSTED_CHK_VALIDATE_SAT) {
 
@@ -182,7 +188,10 @@ int tc_run(bool check_model, bool lenient) {
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
             UNLOCKED_IO(fflush)(output);
-            if (res) trusted_utils_log("SAT validated");
+            if (res) {
+                snprintf(trusted_utils_msgstr, 512, "rev. %i : SAT validated", revision);
+                trusted_utils_log(trusted_utils_msgstr);
+            }
             free(model);
 
         } else if (c == TRUSTED_CHK_TERMINATE) {

@@ -143,7 +143,7 @@ bool tp_inner_input_valid(void) {return !input_invalid;}
 
 void tp_inner_output(void) {
     if (data->size > 0) output_literal_buffer();
-    if (asmpt_data->size == 0) return;
+    if (asmpt_data->size == 0) int_vec_push(asmpt_data, 0);
     // Assumptions separator
     trusted_utils_write_int(IMPCHECK_MARKER_ASSUMPTIONS, f_out);
     trusted_utils_write_ints(asmpt_data->data, asmpt_data->size, f_out);

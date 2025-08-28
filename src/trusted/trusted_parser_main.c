@@ -12,6 +12,7 @@ FILE* f;
 bool confirm;
 FILE* tp_out;
 FILE* inputlog_out;
+int revision = -1;
 
 void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputlog) {
     f = fopen(filename, "r");
@@ -26,6 +27,7 @@ FILE* tp_input_log(void) {
 }
 
 bool parse_increment(void) {
+    revision++;
 
     // Read formula increment
     while (true) {
@@ -62,9 +64,9 @@ bool parse_increment(void) {
         }
 
         if (item->res == 10)
-            printf("s VERIFIED SATISFIABLE\n");
+            printf("s VERIFIED SATISFIABLE rev=%i\n", revision);
         if (item->res == 20)
-            printf("s VERIFIED UNSATISFIABLE\n");
+            printf("s VERIFIED UNSATISFIABLE rev=%i\n", revision);
     }
 
     // Re-initialize new signature with prior signature
