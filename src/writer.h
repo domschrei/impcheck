@@ -8,6 +8,7 @@ void writer_init(char* output_path);
 void writer_flush();
 void write_bool(bool b);
 void write_char(int c_int);
+void write_uint(u32 i);
 void write_int(int i);
 void write_ints(int* data, u64 nb_ints);
 void write_ul(u64 ul);

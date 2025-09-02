@@ -5,6 +5,7 @@
 #include "clausecompress.h"
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "pointer_storage.h"
+#include "secret.h"
 #include "siphash.h"        // for siphash_digest, siphash_update
 #include "sort.h"
 #include "trusted_utils.h"  // for u64, trusted_utils_msgstr, MALLOB_UNLIKELY
@@ -62,8 +63,10 @@ bool lenient;
 u64 id_to_add = 1;
 u64 nb_loaded_clauses = 0;
 struct int_vec* clause_to_add;
-bool done_loading = false;
+bool loading = false;
 SIG_TYPE last_f_sig;
+
+struct siphash* siphash_f;
 
 int* a_ptr;
 int nb_assumptions = 0;
@@ -214,8 +217,24 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     }
 
     // ERROR - something went wrong
-    if (trusted_utils_msgstr[0] == '\0')
+    if (trusted_utils_msgstr[0] == '\0') {
         snprintf(trusted_utils_msgstr, 512, "Derivation %lu: no empty clause was produced", base_id);
+        for (int i = 0; i < nb_hints; i++) {
+            const u64 hint_id = hints[i];
+            printf("IMPCHK ERR - cls %lu\n", hint_id);
+            const CLSTYPE cls = fetch_clause(hint_id);
+#if IMPCHECK_COMPRESS
+            struct cclause_view view = get_cclause_view(&cls);
+            int lit;
+            while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
+#else
+            for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
+                const int lit = cls[lit_idx];
+#endif
+                printf("IMPCHK ERR   - lit %i\n", lit);
+            }
+        }
+    }
     reset_assignments();
     return false;
 }
@@ -267,7 +286,7 @@ bool clauses_equivalent(const CLSTYPE left_cls, const CLSTYPE right_cls) {
 bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
     CLSTYPE cls = clause_init(lits, nb_lits);
     bool ok = true;
-    if (done_loading) ok = hash_table_insert(clause_table, id, cls);
+    if (!loading) ok = hash_table_insert(clause_table, id, cls);
     else {
         u64_vec_push(input_clauses, (u64) cls);
         assert(id == input_clauses->size);
@@ -293,23 +312,19 @@ void lrat_check_init(bool opt_check_model, bool opt_lenient) {
     assigned_units = int_vec_init(512);
     check_model = opt_check_model;
     lenient = opt_lenient;
+    siphash_f = siphash_init(SECRET_KEY);
 }
 
-void lrat_check_begin_load(void) {
-    done_loading = false;
-    if (first_load) {
-        first_load = false;
-    } else {
-        // Bootstrap new increment signature with the last one's
-        siphash_reset();
-        siphash_update((u8*) &last_f_sig, SIG_SIZE_BYTES);
-    }
+bool lrat_check_begin_load(void) {
+    if (loading) return false;
+    loading = true;
+    return true;
 }
 
 bool lrat_check_load(int lit) {
     if (lit == 0) {
         int_vec_push(clause_to_add, 0);
-        siphash_update((u8*) clause_to_add->data, clause_to_add->size*sizeof(int));
+        siphash_update(siphash_f, (u8*) clause_to_add->data, clause_to_add->size*sizeof(int));
         if (!lrat_check_add_axiomatic_clause(id_to_add, clause_to_add->data, clause_to_add->size - 1)) {
             return false;
         }
@@ -321,16 +336,20 @@ bool lrat_check_load(int lit) {
     return true;
 }
 
-bool lrat_check_end_load(u8** out_sig, int* a, int size) {
+bool lrat_check_end_load(SIG_TYPE* out_sig, int* a, int size) {
+    if (!loading) {
+        snprintf(trusted_utils_msgstr, 512, "END_LOAD received while not loading!");
+        return false;
+    }
     if (clause_to_add->size > 0) {
         snprintf(trusted_utils_msgstr, 512, "literals left in unterminated clause");
         return false;
     }
-    siphash_pad(2); // two-byte padding for formula signature input
-    *out_sig = siphash_digest();
-    trusted_utils_copy_bytes((u8*) &last_f_sig, *out_sig, SIG_SIZE_BYTES);
 
-    done_loading = true;
+    last_f_sig = siphash_end_branch(siphash_f, 0);
+    *out_sig = last_f_sig;
+
+    loading = false;
     nb_loaded_clauses = id_to_add-1;
     //u64_vec_shrink_to_fit(input_clauses);
 
@@ -343,6 +362,10 @@ bool lrat_check_end_load(u8** out_sig, int* a, int size) {
 
 
 bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int nb_hints) {
+    if (loading) {
+        snprintf(trusted_utils_msgstr, 512, "Illegal clause addition during loading");
+        return false;
+    }
     if (!check_clause(id, lits, nb_lits, hints, nb_hints)) {
         return false;
     }
@@ -350,6 +373,10 @@ bool lrat_check_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int
 }
 
 bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
+    if (loading) {
+        snprintf(trusted_utils_msgstr, 512, "Illegal clause deletion during loading");
+        return false;
+    }
     for (int i = 0; i < nb_ids; i++) {
         u64 id = ids[i];
         CLSTYPE cls = fetch_clause(id);
@@ -363,8 +390,8 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
 }
 
 bool lrat_check_validate_unsat(u64 id, const int* failed, int size) {
-    if (!done_loading) {
-        snprintf(trusted_utils_msgstr, 512, "UNSAT validation illegal - loading formula was not concluded");
+    if (loading) {
+        snprintf(trusted_utils_msgstr, 512, "Illegal UNSAT validation during loading");
         return false;
     }
 
@@ -414,7 +441,7 @@ bool lrat_check_validate_unsat(u64 id, const int* failed, int size) {
 bool lrat_check_validate_sat(int* model, u64 size) {
 
     // Still loading the formula?
-    if (!done_loading) {
+    if (loading) {
         snprintf(trusted_utils_msgstr, 512, "SAT validation illegal - loading formula was not concluded");
         return false;
     }
@@ -423,6 +450,20 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         snprintf(trusted_utils_msgstr, 512, "SAT validation illegal - not executed to explicitly support this");
         return false;
     }
+
+    // Check that all assumptions are satisfied by the model
+    int aidx = 0;
+    for (u32 midx = 0; midx < size; midx++) {
+        int lit = model[midx];
+        while (aidx < nb_assumptions && abs(a_ptr[aidx]) != abs(lit)) aidx++;
+        if (aidx == nb_assumptions) break; // no more assumptions in the remaining model
+        int asmpt = a_ptr[aidx];
+        if (asmpt != lit) {
+            snprintf(trusted_utils_msgstr, 512, "SAT validation: assumption %i broken by model lit %i", asmpt, lit);
+            return false;
+        }
+    }
+
     // Check each original problem clause
     for (u64 id = 1; id <= nb_loaded_clauses; id++) {
         const CLSTYPE cls = fetch_clause(id);
@@ -475,4 +516,8 @@ bool lrat_check_validate_sat(int* model, u64 size) {
     }
     // All original problem clauses are satisfied – correct model!
     return true;
+}
+
+u32 lrat_check_get_nb_input_clauses(void) {
+    return nb_loaded_clauses;
 }

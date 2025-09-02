@@ -17,6 +17,7 @@
 #undef TYPE
 
 FILE* f_out;
+struct siphash* siphash_f;
 
 struct int_vec* data;
 struct int_vec* asmpt_data;
@@ -38,7 +39,7 @@ int nb_cls = -1;
 
 
 void output_literal_buffer(void) {
-    siphash_update((unsigned char*) data->data, data->size * sizeof(int));
+    siphash_update(siphash_f, (unsigned char*) data->data, data->size * sizeof(int));
     trusted_utils_write_ints(data->data, data->size, f_out);
     if (tp_input_log()) {
         for (u32 i = 0; i < data->size; i++) {
@@ -132,10 +133,11 @@ bool tp_inner_process(char c) {
     return false;
 }
 
-void tp_inner_init(FILE* f) {
+void tp_inner_init(FILE* f, struct siphash* sh) {
     f_out = f;
     data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
     asmpt_data = int_vec_init(64);
+    siphash_f = sh;
 }
 
 bool tp_inner_input_finished(void) {return input_finished;}

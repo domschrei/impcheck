@@ -4,5 +4,5 @@
 #include <stdbool.h>
 
 void tc_init(const char* fifo_in, const char* fifo_out);
-void tc_end();
+void tc_end(void);
 int tc_run(bool check_model, bool lenient);

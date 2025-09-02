@@ -39,7 +39,8 @@ void trusted_utils_try_match_arg(const char* arg, const char* opt, const char** 
 void trusted_utils_try_match_flag(const char* arg, const char* opt, bool* out);
 
 void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes);
-bool trusted_utils_equal_signatures(const u8* left, const u8* right);
+bool trusted_utils_equal_signatures_ptr(const u8* left, const u8* right);
+bool trusted_utils_equal_signatures(SIG_TYPE left, SIG_TYPE right);
 
 void* trusted_utils_malloc(u64 size);
 void* trusted_utils_realloc(void* from, u64 new_size);
@@ -48,6 +49,7 @@ void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj);
 void trusted_utils_read_objs(void* data, size_t size_per_obj, size_t nb_objs, FILE* file);
 bool trusted_utils_read_bool(FILE* file);
 int trusted_utils_read_char(FILE* file);
+u32 trusted_utils_read_uint(FILE* file);
 int trusted_utils_read_int(FILE* file);
 void trusted_utils_read_ints(int* data, u64 nb_ints, FILE* file);
 u64 trusted_utils_read_ul(FILE* file);
@@ -56,6 +58,7 @@ void trusted_utils_read_sig(u8* out_sig, FILE* file);
 
 void trusted_utils_write_bool(bool b, FILE* file);
 void trusted_utils_write_char(char c, FILE* file);
+void trusted_utils_write_uint(u32 i, FILE* file);
 void trusted_utils_write_int(int i, FILE* file);
 void trusted_utils_write_ints(const int* data, u64 nb_ints, FILE* file);
 void trusted_utils_write_ul(u64 u, FILE* file);

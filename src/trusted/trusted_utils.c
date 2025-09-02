@@ -1,5 +1,6 @@
 
 #include "trusted_utils.h"
+#include "siphash.h"
 #include <assert.h>
 #include <string.h>
 #if IMPCHECK_WRITE_DIRECTIVES
@@ -13,9 +14,11 @@ char trusted_utils_msgstr[512] = "";
 
 void trusted_utils_log(const char* msg) {
     printf("c [IMPCHK %i] %s\n", getpid(), msg);
+    if (msg == trusted_utils_msgstr) trusted_utils_msgstr[0] = '\0';
 }
 void trusted_utils_log_err(const char* msg) {
     printf("c [IMPCHK %i] [ERROR] %s\n", getpid(), msg);
+    if (msg == trusted_utils_msgstr) trusted_utils_msgstr[0] = '\0';
 }
 
 void trusted_utils_exit_eof(void) {
@@ -47,10 +50,13 @@ void trusted_utils_copy_bytes(u8* to, const u8* from, u64 nb_bytes) {
     for (u64 i = 0; i < nb_bytes; i++) to[i] = from[i];
 }
 
-bool trusted_utils_equal_signatures(const u8* left, const u8* right) {
+bool trusted_utils_equal_signatures_ptr(const u8* left, const u8* right) {
     for (u64 i = 0; i < SIG_SIZE_BYTES; i++)
         if (left[i] != right[i]) return false;
     return true;
+}
+bool trusted_utils_equal_signatures(SIG_TYPE left, SIG_TYPE right) {
+    return left.high == right.high && left.low == right.low;
 }
 
 void* trusted_utils_malloc(u64 size) {
@@ -88,6 +94,14 @@ int trusted_utils_read_char(FILE* file) {
 void trusted_utils_read_objs(void* data, size_t size, size_t nb_objs, FILE* file) {
     u64 nb_read = UNLOCKED_IO(fread)(data, size, nb_objs, file);
     if (nb_read < nb_objs) trusted_utils_exit_eof();
+}
+u32 trusted_utils_read_uint(FILE* file) {
+    u32 i;
+    trusted_utils_read_objs(&i, sizeof(u32), 1, file);
+#ifdef IMPCHECK_WRITE_DIRECTIVES
+    write_uint(i);
+#endif
+    return i;
 }
 int trusted_utils_read_int(FILE* file) {
     int i;
@@ -137,6 +151,9 @@ void trusted_utils_write_bool(bool b, FILE* file) {
 void write_objs(const void* data, size_t size, size_t nb_objs, FILE* file) {
     u64 nb_read = UNLOCKED_IO(fwrite)(data, size, nb_objs, file);
     if (nb_read < nb_objs) trusted_utils_exit_eof();
+}
+void trusted_utils_write_uint(u32 i, FILE* file) {
+    write_objs(&i, sizeof(u32), 1, file);
 }
 void trusted_utils_write_int(int i, FILE* file) {
     write_objs(&i, sizeof(int), 1, file);

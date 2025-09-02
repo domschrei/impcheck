@@ -29,15 +29,11 @@ void generate_key(const char* seed_str) {
     trusted_utils_copy_bytes(init_key+8, (const u8*) &salt, 8);
 
     // Initialize SipHash with init_key, generate fingerprint of SECRET_KEY
-    siphash_init(init_key);
-    siphash_update(SECRET_KEY, 16);
-    u8* fp = siphash_digest();
+    struct siphash* sh = siphash_init(init_key);
+    siphash_update(sh, SECRET_KEY, 16);
+    SIG_TYPE sig = siphash_digest(sh);
+    siphash_free(sh);
 
     // Overwrite SECRET_KEY with generated fingerprint
-    for (unsigned int i = 0; i < 16; i++) {
-        SECRET_KEY[i] = fp[i];
-    }
-
-    // Re-initialize SipHash, now with the actual key
-    siphash_reinit(SECRET_KEY);
+    trusted_utils_copy_bytes(SECRET_KEY, (u8*) &sig, SIG_SIZE_BYTES);
 }

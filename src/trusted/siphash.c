@@ -1,10 +1,13 @@
 
 #include "siphash.h"
+#include "secret.h"
 #include "trusted_utils.h"
 #include <stdbool.h>  // for true
 #include <stdlib.h>   // for free, abort
 #include <assert.h>   // for assert
 #include <unistd.h>
+
+struct siphash* sh_copy = 0;
 
 #define cROUNDS 2
 #define dROUNDS 4
@@ -31,47 +34,35 @@
 
 #define SIPROUND                                                               \
     do {                                                                       \
-        v0 += v1;                                                              \
-        v1 = ROTL(v1, 13);                                                     \
-        v1 ^= v0;                                                              \
-        v0 = ROTL(v0, 32);                                                     \
-        v2 += v3;                                                              \
-        v3 = ROTL(v3, 16);                                                     \
-        v3 ^= v2;                                                              \
-        v0 += v3;                                                              \
-        v3 = ROTL(v3, 21);                                                     \
-        v3 ^= v0;                                                              \
-        v2 += v1;                                                              \
-        v1 = ROTL(v1, 17);                                                     \
-        v1 ^= v2;                                                              \
-        v2 = ROTL(v2, 32);                                                     \
+        sh->v0 += sh->v1;                                                              \
+        sh->v1 = ROTL(sh->v1, 13);                                                     \
+        sh->v1 ^= sh->v0;                                                              \
+        sh->v0 = ROTL(sh->v0, 32);                                                     \
+        sh->v2 += sh->v3;                                                              \
+        sh->v3 = ROTL(sh->v3, 16);                                                     \
+        sh->v3 ^= sh->v2;                                                              \
+        sh->v0 += sh->v3;                                                              \
+        sh->v3 = ROTL(sh->v3, 21);                                                     \
+        sh->v3 ^= sh->v0;                                                              \
+        sh->v2 += sh->v1;                                                              \
+        sh->v1 = ROTL(sh->v1, 17);                                                     \
+        sh->v1 ^= sh->v2;                                                              \
+        sh->v2 = ROTL(sh->v2, 32);                                                     \
     } while (0)
 
-const unsigned char* kk;
-u8* out;
-const int outlen = 128 / 8;
-u64 v0, v1, v2, v3;
-u64 k0, k1;
-u64 m;
-int i;
-u64 inlen;
-
-u8* buf;
-unsigned char buflen = 0;
-
-void process_next_block(void) {
-    m = U8TO64_LE(buf);
-    v3 ^= m;
-    for (i = 0; i < cROUNDS; ++i)
+void process_next_block(struct siphash* sh) {
+    sh->m = U8TO64_LE(sh->buf);
+    sh->v3 ^= sh->m;
+    for (int i = 0; i < cROUNDS; ++i)
         SIPROUND;
-    v0 ^= m;
+    sh->v0 ^= sh->m;
 }
 
-void process_final_block(void) {
-    const int left = inlen & 7;
-    assert(left == buflen);
-    u64 b = ((u64)inlen) << 56;
-    u8* ni = buf;
+void process_final_block(struct siphash* sh) {
+    const int left = sh->inlen & 7;
+    assert(left == sh->buflen);
+    u64 b = ((u64)sh->inlen) << 56;
+    u8* ni = sh->buf;
 
     switch (left) {
     case 7:
@@ -99,83 +90,106 @@ void process_final_block(void) {
         break;
     }
 
-    v3 ^= b;
+    sh->v3 ^= b;
 
-    for (i = 0; i < cROUNDS; ++i)
+    for (int i = 0; i < cROUNDS; ++i)
         SIPROUND;
 
-    v0 ^= b;
+    sh->v0 ^= b;
 
-    if (outlen == 16)
-        v2 ^= 0xee;
+    if (sh->outlen == 16)
+        sh->v2 ^= 0xee;
     else
-        v2 ^= 0xff;
+        sh->v2 ^= 0xff;
 
-    for (i = 0; i < dROUNDS; ++i)
+    for (int i = 0; i < dROUNDS; ++i)
         SIPROUND;
 
-    b = v0 ^ v1 ^ v2 ^ v3;
-    U64TO8_LE(out, b);
+    b = sh->v0 ^ sh->v1 ^ sh->v2 ^ sh->v3;
+    U64TO8_LE(sh->out, b);
 
-    v1 ^= 0xdd;
+    sh->v1 ^= 0xdd;
 
-    for (i = 0; i < dROUNDS; ++i)
+    for (int i = 0; i < dROUNDS; ++i)
         SIPROUND;
 
-    b = v0 ^ v1 ^ v2 ^ v3;
-    U64TO8_LE(out + 8, b);
+    b = sh->v0 ^ sh->v1 ^ sh->v2 ^ sh->v3;
+    U64TO8_LE(sh->out + 8, b);
 }
 
-void siphash_init(const unsigned char* key_128bit) {
-    out = trusted_utils_malloc(128 / 8);
-    buf = trusted_utils_malloc(8);
-    siphash_reinit(key_128bit);
+struct siphash* siphash_init(const unsigned char* key_128bit) {
+    struct siphash* sh = trusted_utils_malloc(sizeof(struct siphash));
+    sh->outlen = 128 / 8;
+    sh->buflen = 0;
+    sh->out = trusted_utils_malloc(128 / 8);
+    sh->buf = trusted_utils_malloc(8);
+    siphash_reinit(sh, key_128bit);
+    return sh;
 }
-void siphash_reinit(const unsigned char* key_128bit) {
-    kk = key_128bit;
-    if (kk) siphash_reset();
+void siphash_reinit(struct siphash* sh, const unsigned char* key_128bit) {
+    sh->kk = key_128bit;
+    siphash_reset(sh);
 }
-void siphash_reset(void) {
-    v0 = SH_UINT64_C(0x736f6d6570736575);
-    v1 = SH_UINT64_C(0x646f72616e646f6d);
-    v2 = SH_UINT64_C(0x6c7967656e657261);
-    v3 = SH_UINT64_C(0x7465646279746573);
-    k0 = U8TO64_LE(kk);
-    k1 = U8TO64_LE(kk + 8);
-    v3 ^= k1;
-    v2 ^= k0;
-    v1 ^= k1;
-    v0 ^= k0;
-    inlen = 0;
-    buflen = 0;
-    if (outlen == 16)
-        v1 ^= 0xee;
+void siphash_reset(struct siphash* sh) {
+    sh->v0 = SH_UINT64_C(0x736f6d6570736575);
+    sh->v1 = SH_UINT64_C(0x646f72616e646f6d);
+    sh->v2 = SH_UINT64_C(0x6c7967656e657261);
+    sh->v3 = SH_UINT64_C(0x7465646279746573);
+    sh->k0 = U8TO64_LE(sh->kk);
+    sh->k1 = U8TO64_LE(sh->kk + 8);
+    sh->v3 ^= sh->k1;
+    sh->v2 ^= sh->k0;
+    sh->v1 ^= sh->k1;
+    sh->v0 ^= sh->k0;
+    sh->inlen = 0;
+    sh->buflen = 0;
+    if (sh->outlen == 16)
+        sh->v1 ^= 0xee;
 }
-void siphash_update(const unsigned char* data, u64 nb_bytes) {
+struct siphash* siphash_copy(struct siphash* sh) {
+    if (!sh_copy) {
+        sh_copy = siphash_init(SECRET_KEY);
+    }
+    u8* out = sh_copy->out;
+    u8* buf = sh_copy->buf;
+    trusted_utils_copy_bytes((void*) sh_copy, (void*) sh, sizeof(struct siphash));
+    sh_copy->out = out;
+    sh_copy->buf = buf;
+    trusted_utils_copy_bytes(sh_copy->out, sh->out, 128 / 8);
+    trusted_utils_copy_bytes(sh_copy->buf, sh->buf, 8);
+    return sh_copy;
+}
+SIG_TYPE siphash_end_branch(struct siphash* sh, int nb_padding_zeroes) {
+    struct siphash* copy = siphash_copy(sh);
+    if (nb_padding_zeroes > 0) siphash_pad(copy, nb_padding_zeroes);
+    return siphash_digest(copy);
+}
+void siphash_update(struct siphash* sh, const unsigned char* data, u64 nb_bytes) {
     u32 datapos = 0;
     while (true) {
-        while (buflen < 8u && datapos < nb_bytes) {
-            buf[buflen++] = data[datapos++];
+        while (sh->buflen < 8u && datapos < nb_bytes) {
+            sh->buf[sh->buflen++] = data[datapos++];
         }
-        if (buflen < 8u) {
+        if (sh->buflen < 8u) {
             break;
         }
-        process_next_block();
-        buflen = 0;
+        process_next_block(sh);
+        sh->buflen = 0;
     }
-    inlen += nb_bytes;
+    sh->inlen += nb_bytes;
 }
-void siphash_pad(u64 nb_bytes) {
+void siphash_pad(struct siphash* sh, u64 nb_bytes) {
     const unsigned char c = 0;
-    for (u64 i = 0; i < nb_bytes; i++) siphash_update(&c, 1);
+    for (u64 i = 0; i < nb_bytes; i++) siphash_update(sh, &c, 1);
 }
-u8* siphash_digest(void) {
-    process_final_block();
-    return out;
+SIG_TYPE siphash_digest(struct siphash* sh) {
+    process_final_block(sh);
+    return * (SIG_TYPE*) sh->out;
 }
-void siphash_free(void) {
-    free(buf);
-    free(out);
+void siphash_free(struct siphash* sh) {
+    free(sh->buf);
+    free(sh->out);
+    free(sh);
 }
 
 #undef SH_UINT64_C

@@ -224,7 +224,7 @@ void clean_up(u64 checker_id, FILE* out_parsed, FILE* out_directives, FILE* in_f
 
 // Helper method to add and check a single clause derivation.
 void produce_cls(FILE* out_directives, FILE* in_feedback,
-    u64 id, int clslen, const int* lits, int hintlen, const u64* hints, u8* sig_or_null) {
+    u64 id, int clslen, const int* lits, int hintlen, const u64* hints, u8* sig_or_null, u32* cidx_or_null) {
 
     trusted_utils_write_char(TRUSTED_CHK_CLS_PRODUCE, out_directives); // PRODUCE ("add") directive
     trusted_utils_write_ul(id, out_directives); // clause ID
@@ -237,18 +237,21 @@ void produce_cls(FILE* out_directives, FILE* in_feedback,
     if (sig_or_null != 0) {
         trusted_utils_read_sig(sig_or_null, in_feedback);
     }
+    if (cidx_or_null != 0) {
+        *cidx_or_null = trusted_utils_read_uint(in_feedback);
+    }
 }
 
 // Helper method to import a single clause.
 void import_cls(FILE* out_directives, FILE* in_feedback,
-    u64 id, int clslen, const int* lits, u8* signature, int rev) {
+    u64 id, int clslen, const int* lits, u8* signature, u32 cidx) {
 
     trusted_utils_write_char(TRUSTED_CHK_CLS_IMPORT, out_directives); // IMPORT directive
     trusted_utils_write_ul(id, out_directives); // clause ID
     trusted_utils_write_int(clslen, out_directives); // clause length
     trusted_utils_write_ints(lits, clslen, out_directives); // literals
     trusted_utils_write_sig(signature, out_directives); // signature
-    trusted_utils_write_int(rev, out_directives); // revision
+    trusted_utils_write_uint(cidx, out_directives); // incremental clause index
     await_ok(out_directives, in_feedback);
 }
 
@@ -316,11 +319,11 @@ void test_trivial_unsat(void) {
 
     // PRODUCE
     const int cls_5[1] = {1}; const u64 hints_5[2] = {1, 2};
-    produce_cls(out_directives, in_feedback, 5, 1, cls_5, 2, hints_5, 0);
+    produce_cls(out_directives, in_feedback, 5, 1, cls_5, 2, hints_5, 0, 0);
     const int cls_6[1] = {-1}; const u64 hints_6[2] = {3, 4};
-    produce_cls(out_directives, in_feedback, 6, 1, cls_6, 2, hints_6, 0);
+    produce_cls(out_directives, in_feedback, 6, 1, cls_6, 2, hints_6, 0, 0);
     const u64 hints_7[2] = {5, 6};
-    produce_cls(out_directives, in_feedback, 7, 0, 0, 2, hints_7, 0);
+    produce_cls(out_directives, in_feedback, 7, 0, 0, 2, hints_7, 0, 0);
 
     // VALIDATE_UNSAT
     trusted_utils_write_char(TRUSTED_CHK_VALIDATE_UNSAT, out_directives);
@@ -356,24 +359,25 @@ void test_trivial_unsat_x2(void) {
     u64 chkid_1 = setup(cnf, &out_parsed_1, &out_directives_1, &in_feedback_1);
     FILE *out_parsed_2, *out_directives_2, *in_feedback_2;
     u64 chkid_2 = setup(cnf, &out_parsed_2, &out_directives_2, &in_feedback_2);
+    u32 cidx;
 
     // PRODUCE
     const int cls_5[1] = {1}; const u64 hints_5[2] = {1, 2}; u8 sig_5[SIG_SIZE_BYTES];
-    produce_cls(out_directives_1, in_feedback_1, 5, 1, cls_5, 2, hints_5, sig_5);
+    produce_cls(out_directives_1, in_feedback_1, 5, 1, cls_5, 2, hints_5, sig_5, &cidx);
     const int cls_6[1] = {-1}; const u64 hints_6[2] = {3, 4}; u8 sig_6[SIG_SIZE_BYTES];
-    produce_cls(out_directives_2, in_feedback_2, 6, 1, cls_6, 2, hints_6, sig_6);
+    produce_cls(out_directives_2, in_feedback_2, 6, 1, cls_6, 2, hints_6, sig_6, &cidx);
 
     // DELETE
     const u64 del_ids[4] = {3, 4};
     delete_cls(out_directives_2, in_feedback_2, del_ids, 2);
 
     // IMPORT
-    import_cls(out_directives_1, in_feedback_1, 6, 1, cls_6, sig_6, 0);
-    import_cls(out_directives_2, in_feedback_2, 5, 1, cls_5, sig_5, 0);
+    import_cls(out_directives_1, in_feedback_1, 6, 1, cls_6, sig_6, cidx);
+    import_cls(out_directives_2, in_feedback_2, 5, 1, cls_5, sig_5, cidx);
 
     // PRODUCE
     const u64 hints_7[2] = {5, 6};
-    produce_cls(out_directives_1, in_feedback_1, 7, 0, 0, 2, hints_7, false);
+    produce_cls(out_directives_1, in_feedback_1, 7, 0, 0, 2, hints_7, 0, 0);
 
     // VALIDATE_UNSAT
     trusted_utils_write_char(TRUSTED_CHK_VALIDATE_UNSAT, out_directives_1);
@@ -404,7 +408,7 @@ void test_incremental_trivial_unsat(void) {
 
     // PRODUCE
     const int cls_5[1] = {1}; const u64 hints_5[2] = {1, 2};
-    produce_cls(out_directives, in_feedback, 5, 1, cls_5, 2, hints_5, 0);
+    produce_cls(out_directives, in_feedback, 5, 1, cls_5, 2, hints_5, 0, 0);
 
     // VALIDATE_UNSAT
     trusted_utils_write_char(TRUSTED_CHK_VALIDATE_UNSAT, out_directives);
@@ -435,11 +439,11 @@ void test_incremental_trivial_unsat(void) {
     u64 D[] = {__VA_ARGS__}; \
     const int nc = sizeof(C)/sizeof(C[0]); \
     const int nd = sizeof(D)/sizeof(D[0]); \
-    produce_cls(out_directives, in_feedback, I, nc, C, nd, D, 0);
+    produce_cls(out_directives, in_feedback, I, nc, C, nd, D, 0, 0);
 #define PRODUCE_AND_SEND_EMPTY(id,...) \
     u64 D[] = {__VA_ARGS__}; \
     const int nd = sizeof(D)/sizeof(D[0]); \
-    produce_cls(out_directives, in_feedback, id, 0, 0, nd, D, 0);
+    produce_cls(out_directives, in_feedback, id, 0, 0, nd, D, 0, 0);
 
 void test_incremental_unsat(void) {
     printf("[TEST] --- begin test_incremental_unsat() ---\n");

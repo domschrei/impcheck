@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "parser_defs.h"
+#include "secret.h"
 #include "signature_trace.h"
 #include "siphash.h"
 #include "trusted_parser.h"
@@ -13,12 +14,14 @@ bool confirm;
 FILE* tp_out;
 FILE* inputlog_out;
 int revision = -1;
+struct siphash* siphash_parser;
 
 void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputlog) {
     f = fopen(filename, "r");
     tp_out = out;
     inputlog_out = inputlog;
-    tp_inner_init(tp_out);
+    siphash_parser = siphash_init(SECRET_KEY);
+    tp_inner_init(tp_out, siphash_parser);
     confirm = confirm_results;
 }
 
@@ -38,10 +41,8 @@ bool parse_increment(void) {
 
     // Output increment with fingerprint
     tp_inner_output();
-    siphash_pad(2); // two-byte padding for formula signature input
-    u8* sig_f = siphash_digest();
-    SIG_TYPE sig_for;
-    trusted_utils_copy_bytes((u8*) &sig_for, sig_f, SIG_SIZE_BYTES);
+
+    SIG_TYPE sig_for = siphash_end_branch(siphash_parser, 0);
     trusted_utils_write_sig((u8*) &sig_for, tp_out);
     trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, tp_out);
 
@@ -56,9 +57,8 @@ bool parse_increment(void) {
         }
 
         // recompute and validate report signature
-        SIG_TYPE sig_res;
-        confirm_result((u8*) &sig_for, (u8) item->res, item->nb_failed, item->failed_lits, (u8*) &sig_res);
-        if (!trusted_utils_equal_signatures((u8*) &sig_res, (u8*) &item->sig_res)) {
+        SIG_TYPE sig_res = confirm_result(sig_for, (u8) item->res, item->nb_failed, item->failed_lits);
+        if (!trusted_utils_equal_signatures(sig_res, item->sig_res)) {
             trusted_utils_log_err("Result signature does not match!");
             return false;
         }
@@ -68,11 +68,6 @@ bool parse_increment(void) {
         if (item->res == 20)
             printf("s VERIFIED UNSATISFIABLE rev=%i\n", revision);
     }
-
-    // Re-initialize new signature with prior signature
-    siphash_reset();
-    siphash_update((u8*) &sig_for, SIG_SIZE_BYTES);
-
     return true;
 }
 

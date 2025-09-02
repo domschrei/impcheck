@@ -31,6 +31,14 @@ void write_char(int c_int) {
     fprintf(f_writer, "\n%c ", c_int);
 #endif
 }
+void write_uint(u32 i) {
+    if (!f_writer) return;
+#if IMPCHECK_WRITE_DIRECTIVES == 1
+    trusted_utils_write_int(i, f_writer);
+#else
+    fprintf(f_writer, "%u ", i);
+#endif
+}
 void write_int(int i) {
     if (!f_writer) return;
 #if IMPCHECK_WRITE_DIRECTIVES == 1
@@ -72,7 +80,7 @@ void write_sig(u8* sig) {
 #else
     char out[SIG_SIZE_BYTES*2 + 1];
     trusted_utils_sig_to_str(sig, out);
-    fprintf(f_writer, "%s", out);
+    fprintf(f_writer, "%s ", out);
 #endif
 }
 #endif
