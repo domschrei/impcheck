@@ -15,5 +15,5 @@ bool top_check_import(unsigned long id, int* literals, int nb_literals,
     SIG_TYPE signature_data, u32 cidx);
 bool top_check_delete(const unsigned long* ids, int nb_ids);
 bool top_check_validate_unsat(u64 id, int* failed, int size, SIG_TYPE* out_signature_or_null);
-bool top_check_validate_sat(int* model, u64 size, SIG_TYPE* out_signature_or_null);
+bool top_check_validate_sat(int* model, u64 size, int* assumptions, u32 nb_assumptions, SIG_TYPE* out_signature_or_null);
 bool top_check_valid(void);

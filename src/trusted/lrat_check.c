@@ -142,6 +142,30 @@ void reset_assignments(void) {
     int_vec_clear(assigned_units);
 }
 
+void print_error_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
+    printf("IMPCHK ERR ID=%lu", base_id);
+    for (int i = 0; i < nb_lits; i++) {
+        printf(" %i", lits[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < nb_hints; i++) {
+        const u64 hint_id = hints[i];
+        printf("IMPCHK ERR - cls ID=%lu", hint_id);
+        const CLSTYPE cls = fetch_clause(hint_id);
+#if IMPCHECK_COMPRESS
+        struct cclause_view view = get_cclause_view(&cls);
+        int lit;
+        while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
+#else
+        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
+            const int lit = cls[lit_idx];
+#endif
+            printf(" %i", lit);
+        }
+        printf("\n");
+    }
+}
+
 bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
 
     int_vec_reserve(assigned_units, nb_lits + nb_hints);
@@ -180,7 +204,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 // Literal is unassigned
                 if (MALLOB_UNLIKELY(new_unit != 0)) {
                     // ERROR - multiple unassigned literals in hint clause!
-                    snprintf(trusted_utils_msgstr, 512, "Derivation %lu: multiple literals unassigned", base_id);
+                    snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu: multiple literals unassigned "
+                        "- first %i then %i", base_id, hint_id, new_unit, lit);
+                    print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
                     ok = false; break;
                 }
                 new_unit = lit;
@@ -190,7 +216,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             const bool sign = get_var_value(var) > 0;
             if (MALLOB_UNLIKELY(sign == (lit>0))) {
                 // ERROR - clause is satisfied, so it is not a correct hint
-                snprintf(trusted_utils_msgstr, 512, "Derivation %lu: dependency %lu is satisfied", base_id, hint_id);
+                snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu: literal %i is satisfied",
+                    base_id, hint_id, lit);
+                print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
                 ok = false; break;
             }
             // All OK - literal is false, thus (virtually) removed from the clause
@@ -204,6 +232,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             if (MALLOB_UNLIKELY(i+1 < nb_hints)) {
                 // ERROR - not at the final hint yet!
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: empty clause produced at non-final hint %lu", base_id, hint_id);
+                print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
                 break;
             }
             // Final hint produced empty clause - everything OK!
@@ -219,21 +248,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     // ERROR - something went wrong
     if (trusted_utils_msgstr[0] == '\0') {
         snprintf(trusted_utils_msgstr, 512, "Derivation %lu: no empty clause was produced", base_id);
-        for (int i = 0; i < nb_hints; i++) {
-            const u64 hint_id = hints[i];
-            printf("IMPCHK ERR - cls %lu\n", hint_id);
-            const CLSTYPE cls = fetch_clause(hint_id);
-#if IMPCHECK_COMPRESS
-            struct cclause_view view = get_cclause_view(&cls);
-            int lit;
-            while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
-#else
-            for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
-                const int lit = cls[lit_idx];
-#endif
-                printf("IMPCHK ERR   - lit %i\n", lit);
-            }
-        }
+        print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
     }
     reset_assignments();
     return false;

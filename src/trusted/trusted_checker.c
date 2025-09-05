@@ -3,9 +3,11 @@
 #include <stdio.h>          // for fclose, fflush_unlocked, fopen, snprintf
 #include <stdlib.h>         // for free
 #include <time.h>           // for clock, CLOCKS_PER_SEC, clock_t
+#include "sort.h"
 #include "top_check.h"      // for top_check_commit_formula_sig, top_check_d...
 #include "trusted_utils.h"  // for trusted_utils_read_int, trusted_utils_log...
 #include "checker_interface.h"
+#include "lrat_check.h"
 
 #if IMPCHECK_WRITE_DIRECTIVES
 #include <unistd.h>
@@ -67,6 +69,7 @@ void read_hints(int nb_hints) {
 void read_assumptions(int nb_assumptions) {
     int_vec_reserve(assumptions, nb_assumptions);
     trusted_utils_read_ints(assumptions->data, nb_assumptions, input);
+    assumptions->size = nb_assumptions;
 }
 
 void tc_init(const char* fifo_in, const char* fifo_out) {
@@ -158,7 +161,9 @@ int tc_run(bool check_model, bool lenient) {
 
             trusted_utils_read_sig((u8*) &formula_sig, input);
             top_check_commit_formula_sig(formula_sig);
-            say_with_flush(true);
+            say(true);
+            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
+            UNLOCKED_IO(fflush)(output);
 
         } else if (c == TRUSTED_CHK_END_LOAD) {
 
@@ -173,9 +178,11 @@ int tc_run(bool check_model, bool lenient) {
             const int failed_size = trusted_utils_read_int(input);
             int* failed = trusted_utils_malloc(sizeof(int) * failed_size);
             trusted_utils_read_ints(failed, failed_size, input);
+            sort_ints(failed, failed_size);
             bool res = top_check_validate_unsat(id, failed, failed_size, &buf_sig);
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
+            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
                 snprintf(trusted_utils_msgstr, 512, "rev. %i : UNSAT validated", revision);
@@ -188,9 +195,10 @@ int tc_run(bool check_model, bool lenient) {
             const int model_size = trusted_utils_read_int(input);
             int* model = trusted_utils_malloc(sizeof(int) * model_size); // exits if error
             trusted_utils_read_ints(model, model_size, input);
-            bool res = top_check_validate_sat(model, model_size, &buf_sig);
+            bool res = top_check_validate_sat(model, model_size, assumptions->data, assumptions->size, &buf_sig);
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
+            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
                 snprintf(trusted_utils_msgstr, 512, "rev. %i : SAT validated", revision);

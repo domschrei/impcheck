@@ -14,6 +14,7 @@
 // other imports from this project - just for convenience, not strictly needed
 #include "test.h"
 #include "../src/trusted/trusted_utils.h"
+#include "../src/trusted/sort.h"
 // Instantiate int_vec (poor man's template programming in C)
 #define TYPE int
 #define TYPED(THING) int_ ## THING
@@ -84,6 +85,7 @@ void load_next_formula_increment(FILE* out_parsed, FILE* out_directives, FILE* i
     trusted_utils_write_char(TRUSTED_CHK_BEGIN_LOAD, out_directives);
     trusted_utils_write_sig(fsig, out_directives);
     await_ok(out_directives, in_feedback);
+    (void) trusted_utils_read_uint(in_feedback);
 
     // Directive "LOAD"
     trusted_utils_write_char(TRUSTED_CHK_LOAD, out_directives);
@@ -165,17 +167,19 @@ u64 setup(const char* cnfInput, FILE** f_parsed_out, FILE** f_directives_out, FI
     return checker_instance_id++;
 }
 
-void append_to_trace_file(int result, const u8* sig, int nb_failed, int* failed) {
+void append_to_trace_file(u32 cidx, u32 result, const u8* sig, int nb_lits, int* lits) {
 
     // Convert result signature to a string
     char sigstr[2*SIG_SIZE_BYTES+1];
     trusted_utils_sig_to_str(sig, sigstr);
 
+    sort_ints(lits, nb_lits);
+
     // Write signature trace file
     FILE* f_sigtrace = fopen("sigtrace.txt", "a");
-    fprintf(f_sigtrace, "%i %s", result, sigstr);
-    for (int i = 0; i < nb_failed; i++) {
-        fprintf(f_sigtrace, " %i", failed[i]);
+    fprintf(f_sigtrace, "%u %i %s", cidx, result, sigstr);
+    for (int i = 0; i < nb_lits; i++) {
+        fprintf(f_sigtrace, " %i", lits[i]);
     }
     fprintf(f_sigtrace, "\n");
     fclose(f_sigtrace);
@@ -286,9 +290,10 @@ void test_trivial_sat(void) {
     await_ok(out_directives, in_feedback);
     u8 sat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(sat_sig, in_feedback);
+    u32 cidx = trusted_utils_read_uint(in_feedback);
 
     // (optional) confirm with "confirmer" module
-    append_to_trace_file(10, sat_sig, 0, 0);
+    append_to_trace_file(cidx, 10, sat_sig, 0, 0);
     bool ok = confirm(cnf);
     do_assert(ok);
 
@@ -332,9 +337,10 @@ void test_trivial_unsat(void) {
     await_ok(out_directives, in_feedback);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback);
+    u32 cidx = trusted_utils_read_uint(in_feedback);
 
     // (optional) confirm with "confirmer" module
-    append_to_trace_file(20, unsat_sig, 0, 0);
+    append_to_trace_file(cidx, 20, unsat_sig, 0, 0);
     bool ok = confirm(cnf);
     do_assert(ok);
 
@@ -386,9 +392,10 @@ void test_trivial_unsat_x2(void) {
     await_ok(out_directives_1, in_feedback_1);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback_1);
+    cidx = trusted_utils_read_uint(in_feedback_1);
 
     // (optional) confirm with "confirmer" module
-    append_to_trace_file(20, unsat_sig, 0, 0);
+    append_to_trace_file(cidx, 20, unsat_sig, 0, 0);
     bool ok = confirm(cnf);
     do_assert(ok);
     
@@ -419,10 +426,11 @@ void test_incremental_trivial_unsat(void) {
     await_ok(out_directives, in_feedback);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback);
+    u32 cidx = trusted_utils_read_uint(in_feedback);
 
     // (optional) confirm with "confirmer" module
     int failed = -1;
-    append_to_trace_file(20, unsat_sig, 1, &failed);
+    append_to_trace_file(cidx, 20, unsat_sig, 1, &failed);
     bool ok = confirm(cnf);
     do_assert(ok);
 
@@ -468,8 +476,9 @@ void test_incremental_unsat(void) {
     await_ok(out_directives, in_feedback);
     u8 unsat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(unsat_sig, in_feedback);
+    u32 cidx = trusted_utils_read_uint(in_feedback);
 
-    append_to_trace_file(20, unsat_sig, 2, (int*)failed1);
+    append_to_trace_file(cidx, 20, unsat_sig, 2, (int*)failed1);
 
     // Next Increment
     load_next_formula_increment(out_parsed, out_directives, in_feedback);
@@ -482,8 +491,9 @@ void test_incremental_unsat(void) {
     await_ok(out_directives, in_feedback);
     u8 sat_sig[SIG_SIZE_BYTES];
     trusted_utils_read_sig(sat_sig, in_feedback);
+    cidx = trusted_utils_read_uint(in_feedback);
 
-    append_to_trace_file(10, sat_sig, 0, 0);
+    append_to_trace_file(cidx, 10, sat_sig, 0, 0);
 
     // Next increment
     load_next_formula_increment(out_parsed, out_directives, in_feedback);
@@ -498,8 +508,9 @@ void test_incremental_unsat(void) {
     trusted_utils_write_int(0, out_directives); // # failed
     await_ok(out_directives, in_feedback);
     trusted_utils_read_sig(unsat_sig, in_feedback);
+    cidx = trusted_utils_read_uint(in_feedback);
 
-    append_to_trace_file(20, unsat_sig, 0, 0);
+    append_to_trace_file(cidx, 20, unsat_sig, 0, 0);
 
     // (optional) confirm with "confirmer" module
     bool ok = confirm(cnf);

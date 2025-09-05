@@ -11,7 +11,7 @@
 #undef TYPE
 
 FILE* sigtrace_in;
-struct int_vec* failed_lits;
+struct int_vec* lits;
 struct sig_obligation item_out;
 
 int parse_number_and_endchar(char* endchar) {
@@ -31,11 +31,23 @@ int parse_number_and_endchar(char* endchar) {
     }
     return sign * res;
 }
+u32 parse_unsigned_and_endchar(char* endchar) {
+    int res = 0;
+    while (true) {
+        char c = trusted_utils_read_char(sigtrace_in);
+        if (c < '0' || c > '9') {
+            *endchar = c;
+            break;
+        }
+        res = 10*res + (c-'0');
+    }
+    return res;
+}
 
 void signature_trace_init(const char* path) {
     sigtrace_in = fopen(path, "r");
     assert(sigtrace_in);
-    failed_lits = int_vec_init(64);
+    lits = int_vec_init(64);
 }
 
 bool signature_trace_get_next(struct sig_obligation** ptr_out) {
@@ -44,10 +56,19 @@ bool signature_trace_get_next(struct sig_obligation** ptr_out) {
 
     char sig_str[2*SIG_SIZE_BYTES+1];
     char c = '\0';
-    int_vec_clear(failed_lits);
-    
+    int_vec_clear(lits);
+
+    // clause index
+    item_out.cidx = parse_unsigned_and_endchar(&c);
+    if (c != ' ') return false;
+
     // result (+space)
-    item_out.res = parse_number_and_endchar(&c);
+    item_out.res = parse_unsigned_and_endchar(&c);
+    if (item_out.res == 0) {
+        // unknown result - nothing to validate
+        return true;
+    }
+    // Proper result - needs to continue
     if (c != ' ') return false;
 
     // result signature
@@ -58,14 +79,14 @@ bool signature_trace_get_next(struct sig_obligation** ptr_out) {
     // whitespace or linebreak
     c = trusted_utils_read_char(sigtrace_in);
 
-    // failed literals
-    item_out.nb_failed = 0;
+    // assumption literals
+    item_out.nb_lits = 0;
     while (c == ' ') {
         int lit = parse_number_and_endchar(&c);
-        int_vec_push(failed_lits, lit);
-        item_out.nb_failed++;
+        int_vec_push(lits, lit);
+        item_out.nb_lits++;
     }
-    item_out.failed_lits = failed_lits->data;
+    item_out.lits = lits->data;
 
     // end: linebreak
     return c == '\n';

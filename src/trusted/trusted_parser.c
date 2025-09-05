@@ -142,6 +142,7 @@ void tp_inner_init(FILE* f, struct siphash* sh) {
 
 bool tp_inner_input_finished(void) {return input_finished;}
 bool tp_inner_input_valid(void) {return !input_invalid;}
+u32 tp_inner_nb_read_clauses(void) {return nb_read_cls;}
 
 void tp_inner_output(void) {
     if (data->size > 0) output_literal_buffer();

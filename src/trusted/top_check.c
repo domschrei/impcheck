@@ -125,14 +125,14 @@ bool top_check_validate_unsat(u64 id, int* failed, int size, SIG_TYPE* out_signa
     return true;
 }
 
-bool top_check_validate_sat(int* model, u64 size, SIG_TYPE* out_signature_or_null) {
+bool top_check_validate_sat(int* model, u64 size, int* assumptions, u32 nb_assumptions, SIG_TYPE* out_signature_or_null) {
     valid = valid && lrat_check_validate_sat(model, size);
     if (!valid) {
         trusted_utils_log_err(trusted_utils_msgstr);
         return false;
     }
     if (out_signature_or_null)
-        *out_signature_or_null = confirm_result(formula_signature, 10, 0, 0);
+        *out_signature_or_null = confirm_result(formula_signature, 10, nb_assumptions, assumptions);
     return true;
 }
 

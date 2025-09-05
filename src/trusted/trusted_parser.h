@@ -15,5 +15,6 @@ void tp_inner_init(FILE* out, struct siphash* sh);
 bool tp_inner_process(char c);
 bool tp_inner_input_valid(void);
 bool tp_inner_input_finished(void);
+u32 tp_inner_nb_read_clauses(void);
 void tp_inner_output(void);
 void tp_inner_end(void);

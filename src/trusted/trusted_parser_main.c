@@ -1,5 +1,6 @@
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "parser_defs.h"
 #include "secret.h"
@@ -41,6 +42,7 @@ bool parse_increment(void) {
 
     // Output increment with fingerprint
     tp_inner_output();
+    u32 nb_read_cls = tp_inner_nb_read_clauses();
 
     SIG_TYPE sig_for = siphash_end_branch(siphash_parser, 0);
     trusted_utils_write_sig((u8*) &sig_for, tp_out);
@@ -52,21 +54,28 @@ bool parse_increment(void) {
         struct sig_obligation* item;
         if (!signature_trace_get_next(&item)) {
             trusted_utils_log_err("Missing or malformed signature obligation!");
-            printf("ERROR\n");
+            printf("s NOT VERIFIED\n");
+            return false;
+        }
+        if (nb_read_cls != item->cidx) {
+            snprintf(trusted_utils_msgstr, 512, "Unexpected clause index %u (read until index %u)!", item->cidx, nb_read_cls);
+            trusted_utils_log_err(trusted_utils_msgstr);
+            printf("s NOT VERIFIED\n");
             return false;
         }
 
         // recompute and validate report signature
-        SIG_TYPE sig_res = confirm_result(sig_for, (u8) item->res, item->nb_failed, item->failed_lits);
+        SIG_TYPE sig_res = confirm_result(sig_for, (u8) item->res, item->nb_lits, item->lits);
         if (!trusted_utils_equal_signatures(sig_res, item->sig_res)) {
             trusted_utils_log_err("Result signature does not match!");
+            printf("s NOT VERIFIED\n");
             return false;
         }
 
         if (item->res == 10)
-            printf("s VERIFIED SATISFIABLE rev=%i\n", revision);
+            printf("s VERIFIED SATISFIABLE cidx=%u rev=%i\n", item->cidx, revision);
         if (item->res == 20)
-            printf("s VERIFIED UNSATISFIABLE rev=%i\n", revision);
+            printf("s VERIFIED UNSATISFIABLE cidx=%u rev=%i\n", item->cidx, revision);
     }
     return true;
 }

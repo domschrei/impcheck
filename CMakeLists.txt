@@ -76,5 +76,5 @@ add_executable(test_hash src/trusted/trusted_utils.c src/trusted/hash.c src/writ
     test/test_hash.c)
 add_executable(test_sig src/trusted/trusted_utils.c src/trusted/hash.c src/trusted/siphash.c src/trusted/secret.c src/writer.c test/test.c
     test/test_sig.c)
-add_executable(test_full src/trusted/trusted_utils.c src/writer.c test/test.c src/trusted/vectors.c
+add_executable(test_full src/trusted/trusted_utils.c src/writer.c test/test.c src/trusted/vectors.c src/trusted/sort.c
     test/test_full.c)
