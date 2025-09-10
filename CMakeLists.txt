@@ -14,10 +14,6 @@ set(src_parse "src/trusted/trusted_parser.c")
 if(IMPCHECK_COMPRESS EQUAL 1)
     add_definitions("-DIMPCHECK_COMPRESS=1")
 endif()
-if(IMPCHECK_COMPRESS EQUAL 2)
-    add_definitions("-DIMPCHECK_COMPRESS=1")
-    set(src_parse "src/trusted/trusted_compressing_parser.c")
-endif()
 
 execute_process(COMMAND bash "-c" "dd if=/dev/urandom count=8 bs=1 2>/dev/null | od -t u8 | awk '{print $2\"UL\"}' | head -1" OUTPUT_VARIABLE IMPCHECK_SALT)
 file(WRITE src/trusted/salt.h "#define IMPCHECK_SALT " ${IMPCHECK_SALT})
@@ -34,7 +30,6 @@ add_executable(impcheck_parse
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
     ${src_parse}
-    src/trusted/trusted_parser_main.c
     src/trusted/signature_trace.c
     src/trusted/main_parse.c
 )
@@ -67,7 +62,6 @@ add_executable(impcheck_confirm
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
     ${src_parse}
-    src/trusted/trusted_parser_main.c
     src/trusted/signature_trace.c
     src/trusted/main_confirm.c
 )

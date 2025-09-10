@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>        // for bool, false, true
 #include <stdio.h>          // for snprintf
+#include <unistd.h>
 #include "clausecompress.h"
 #include "hash.h"           // for hash_table_find, hash_table_delete_last_f...
 #include "pointer_storage.h"
@@ -38,6 +39,17 @@
 #define CLSTYPE u8*
 #else
 #define CLSTYPE int*
+#endif
+
+// Convenience macro for iterating over a clause's literals.
+#if IMPCHECK_COMPRESS
+#define FOR_LIT_IN_CLAUSE(C, L) \
+        struct cclause_view view_ ## C ## _ ## L = get_cclause_view((const CLSTYPE*) &C); \
+        int L; \
+        while (cc_get_next_decompressed_lit(&view_ ## C ## _ ## L, &L))
+#else
+#define FOR_LIT_IN_CLAUSE(cls, lit) \
+        for (int lit = cls[0]; lit != 0; lit = *((&lit)+1))
 #endif
 
 // The hash table where we keep all learned clauses.
@@ -142,26 +154,27 @@ void reset_assignments(void) {
     int_vec_clear(assigned_units);
 }
 
-void print_error_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
-    printf("IMPCHK ERR ID=%lu", base_id);
+void print_error_clause(CLSTYPE cls, const char* descriptor) {
+    printf("[IMPCHK %i] ERR %s:", getpid(), descriptor);
+    FOR_LIT_IN_CLAUSE(cls, lit) printf(" %i", lit);
+    printf("\n");
+}
+void print_error_clause_lits(const int* lits, int nb_lits, const char* descriptor) {
+    printf("[IMPCHK %i] ERR %s:", getpid(), descriptor);
+    for (int i = 0; i < nb_lits; i++) printf(" %i", lits[i]);
+    printf("\n");
+}
+void print_error_clause_full(u64 base_id, const int* lits, int nb_lits, const u64* hints, int nb_hints) {
+    printf("[IMPCHK %i] ERR ID=%lu", getpid(), base_id);
     for (int i = 0; i < nb_lits; i++) {
         printf(" %i", lits[i]);
     }
     printf("\n");
     for (int i = 0; i < nb_hints; i++) {
         const u64 hint_id = hints[i];
-        printf("IMPCHK ERR - cls ID=%lu", hint_id);
-        const CLSTYPE cls = fetch_clause(hint_id);
-#if IMPCHECK_COMPRESS
-        struct cclause_view view = get_cclause_view(&cls);
-        int lit;
-        while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
-#else
-        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
-            const int lit = cls[lit_idx];
-#endif
-            printf(" %i", lit);
-        }
+        printf("[IMPCHK %i] ERR - cls ID=%lu", getpid(), hint_id);
+        CLSTYPE cls = fetch_clause(hint_id);
+        FOR_LIT_IN_CLAUSE(cls, lit) printf(" %i", lit);
         printf("\n");
     }
 }
@@ -191,14 +204,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
-#if IMPCHECK_COMPRESS
-        struct cclause_view view = get_cclause_view(&cls);
-        int lit;
-        while (cc_get_next_decompressed_lit(&view, &lit)) { // for each literal
-#else
-        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) { // for each literal
-            const int lit = cls[lit_idx];
-#endif
+        FOR_LIT_IN_CLAUSE(cls, lit) {
             const int var = lit > 0 ? lit : -lit;
             if (get_var_value(var) == 0) {
                 // Literal is unassigned
@@ -206,7 +212,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                     // ERROR - multiple unassigned literals in hint clause!
                     snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu: multiple literals unassigned "
                         "- first %i then %i", base_id, hint_id, new_unit, lit);
-                    print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
+                    print_error_clause_full(base_id, lits, nb_lits, hints, nb_hints);
                     ok = false; break;
                 }
                 new_unit = lit;
@@ -218,7 +224,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 // ERROR - clause is satisfied, so it is not a correct hint
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu: literal %i is satisfied",
                     base_id, hint_id, lit);
-                print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
+                print_error_clause_full(base_id, lits, nb_lits, hints, nb_hints);
                 ok = false; break;
             }
             // All OK - literal is false, thus (virtually) removed from the clause
@@ -232,7 +238,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             if (MALLOB_UNLIKELY(i+1 < nb_hints)) {
                 // ERROR - not at the final hint yet!
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: empty clause produced at non-final hint %lu", base_id, hint_id);
-                print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
+                print_error_clause_full(base_id, lits, nb_lits, hints, nb_hints);
                 break;
             }
             // Final hint produced empty clause - everything OK!
@@ -248,7 +254,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     // ERROR - something went wrong
     if (trusted_utils_msgstr[0] == '\0') {
         snprintf(trusted_utils_msgstr, 512, "Derivation %lu: no empty clause was produced", base_id);
-        print_error_clause(base_id, lits, nb_lits, hints, nb_hints);
+        print_error_clause_full(base_id, lits, nb_lits, hints, nb_hints);
     }
     reset_assignments();
     return false;
@@ -256,16 +262,16 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
 
 bool clauses_equivalent(const CLSTYPE left_cls, const CLSTYPE right_cls) {
     if (!left_cls || !right_cls) return false;
-    if (ptr_storage_is_real_pointer(left_cls) != ptr_storage_is_real_pointer(right_cls)) return false;
 #if IMPCHECK_COMPRESS
-    const CLSTYPE left;
-    const CLSTYPE right;
+    if (ptr_storage_is_real_pointer(left_cls) != ptr_storage_is_real_pointer(right_cls)) return false;
     if (!ptr_storage_is_real_pointer(left_cls)) {
-        // Fabricated pointers: point them to their own previous "address" data
-        left = left_cls;
-        left_cls = (const CLSTYPE) &left;
-        right = right_cls;
-        right_cls = (const CLSTYPE) &right;
+        // Fabricated pointers: Traverse and check for exactly the same data
+        u8* left = (u8*) &left_cls;
+        u8* right = (u8*) &right_cls;
+        for (u32 i = 0; i < sizeof(void*); i++) {
+            if (left[i] != right[i]) return false;
+        }
+        return true;
     }
     // Linear pass over compressed clause bytes, since they are "normalized" by compression
     int idx = 0;
@@ -314,7 +320,11 @@ bool lrat_check_add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
                 ok = true;
             }
         }
-        if (!ok) snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
+        if (!ok) {
+            snprintf(trusted_utils_msgstr, 512, "Insertion of clause %lu unsuccessful - already present?", id);
+            print_error_clause(fetch_clause(id), "Present clause");
+            print_error_clause_lits(lits, nb_lits, "Incoming clause");
+        }
     }
     return ok;
 }
@@ -399,7 +409,7 @@ bool lrat_check_delete_clause(const u64* ids, int nb_ids) {
             snprintf(trusted_utils_msgstr, 512, "Clause deletion: ID %lu not found", id);
             return false;
         }
-        if (!free_clause(id, cls)) return false;
+        if (!free_clause(id, cls)) return false; // writes to "trusted_utils_msgstr" internally
     }
     return true;
 }
@@ -427,29 +437,63 @@ bool lrat_check_validate_unsat(u64 id, const int* failed, int size) {
         }
     }
 
-    // Construct a clause from the negated failed literals
+    // For convenience, flip the assumptions marked as failed to their failed units
+    // and sort the sequence again.
     for (int i = 0; i < size; i++) copy_failed[i] *= -1;
-    CLSTYPE cls_failed = clause_init(copy_failed, size);
-#if !IMPCHECK_COMPRESS 
-    sort_ints(cls_failed, size);
-#endif
+    sort_ints(copy_failed, size);
 
     // Fetch referenced conclusion clause
-    const CLSTYPE cls = fetch_clause(id);
+    CLSTYPE cls = fetch_clause(id);
     if (!cls) {
         snprintf(trusted_utils_msgstr, 512, "UNSAT validation: ID %lu not found", id);
         return false;
     }
+    // Convert to plain, sorted array of external literals
+    struct int_vec* vec_cls = int_vec_init(16);
+    FOR_LIT_IN_CLAUSE(cls, lit) int_vec_push(vec_cls, lit);
+    sort_ints(vec_cls->data, vec_cls->size);
 
-    // Check syntactical equivalence of clauses
-    if (!clauses_equivalent(cls, cls_failed)) {
-        snprintf(trusted_utils_msgstr, 512,
-            "UNSAT validation: failed lits not matching conclusion clause %lu!", id);
+    // Make sure that each literal of the conclusion clause marks a failed unit.
+    aidx = 0;
+    bool ok = true;
+    for (u32 cidx = 0; cidx < vec_cls->size; cidx++) {
+        int lit = vec_cls->data[cidx];
+        while (aidx < size && copy_failed[aidx] != lit) aidx++;
+        if (aidx == size) {
+            ok = false;
+            break;
+        }
+    }
+    int_vec_free(vec_cls);
+
+    if (!ok) {
+        // Clause literal is not part of the assumptions marked as failed!
+        snprintf(trusted_utils_msgstr, 512, "UNSAT validation: conclusion lit %i"
+            " is not specified as a failed assumption!", lit);
+        print_error_clause(cls, "Conclusion");
+        print_error_clause_lits(copy_failed, size, "Failed lits");
         return false;
     }
 
+    // Exact equivalence check of conclusion and failed assumptions - too strict?
+    if (false) {
+        // Construct a clause from the negated failed literals
+        CLSTYPE cls_failed = clause_init(copy_failed, size);
+#if !IMPCHECK_COMPRESS
+        sort_ints(cls_failed, size);
+#endif
+        // Check syntactical equivalence of clauses
+        if (!clauses_equivalent(cls, cls_failed)) {
+            snprintf(trusted_utils_msgstr, 512,
+                "UNSAT validation: failed lits not matching conclusion clause %lu!", id);
+            print_error_clause(cls, "Conclusion");
+            print_error_clause(cls_failed, "Failed lits");
+            return false;
+        }
+        if (ptr_storage_is_real_pointer(cls_failed)) free(cls_failed);
+    }
+
     free(copy_failed);
-    if (ptr_storage_is_real_pointer(cls_failed)) free(cls_failed);
     return true;
 }
 
@@ -489,14 +533,7 @@ bool lrat_check_validate_sat(int* model, u64 size) {
         }
         // Iterate over the literals of the clause
         bool satisfied = false;
-#if IMPCHECK_COMPRESS
-        struct cclause_view view = get_cclause_view(&cls);
-        int lit;
-        while (cc_get_next_decompressed_lit(&view, &lit)) {
-#else
-        for (int lit_idx = 0; cls[lit_idx] != 0; lit_idx++) {
-            const int lit = cls[lit_idx];
-#endif
+        FOR_LIT_IN_CLAUSE(cls, lit) {
             const int var = lit>0 ? lit : -lit;
             if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
                 // ERROR - model does not cover this variable

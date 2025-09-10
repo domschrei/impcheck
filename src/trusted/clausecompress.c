@@ -77,7 +77,7 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
     }
     // Somewhat awkward to find the correct number of bytes to have enough room for itself ...
     u8 nbBytesForSize = 1;
-    if (cc_nb_needed_varlength_bytes(size+nbBytesForSize) > nbBytesForSize)
+    while (cc_nb_needed_varlength_bytes(size+nbBytesForSize) > nbBytesForSize)
         nbBytesForSize++;
     assert(cc_nb_needed_varlength_bytes(size+nbBytesForSize) == nbBytesForSize);
     size += nbBytesForSize;

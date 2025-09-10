@@ -1,13 +1,16 @@
 
-#include "trusted_parser.h"
 #include <assert.h>
 #include <stdint.h>
-#include <stdbool.h>        // for false, bool, true
-#include <stdio.h>          // for FILE, fgetc_unlocked, fopen, EOF
-#include <stdlib.h>         // for abort, free
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "parser_defs.h"
-#include "siphash.h"        // for siphash_digest, siphash_update
-#include "trusted_utils.h"  // for trusted_utils_write_int, trusted_utils_wr...
+#include "secret.h"
+#include "signature_trace.h"
+#include "siphash.h"
+#include "trusted_parser.h"
+#include "trusted_utils.h"
+#include "confirm.h"
 
 // Instantiate int_vec
 #define TYPE int
@@ -16,14 +19,14 @@
 #undef TYPED
 #undef TYPE
 
+FILE* f;
 FILE* f_out;
-struct siphash* siphash_f;
+FILE* inputlog_out;
 
 struct int_vec* data;
 struct int_vec* asmpt_data;
 
 bool comment = false;
-bool header = false;
 bool in_assumptions = false;
 bool increment_finished = false;
 bool input_finished = false;
@@ -32,39 +35,26 @@ bool began_num = false;
 
 int num = 0;
 int sign = 1;
-int nb_read_cls = 0;
+u32 nb_read_cls = 0;
 
-int nb_vars = -1;
-int nb_cls = -1;
+bool confirm;
 
+int revision = -1;
+struct siphash* siphash_parser;
 
 void output_literal_buffer(void) {
-    siphash_update(siphash_f, (unsigned char*) data->data, data->size * sizeof(int));
+    siphash_update(siphash_parser, (unsigned char*) data->data, data->size * sizeof(int));
     trusted_utils_write_ints(data->data, data->size, f_out);
-    if (tp_input_log()) {
+    if (inputlog_out) {
         for (u32 i = 0; i < data->size; i++) {
             int lit = data->data[i];
-            fprintf(tp_input_log(), "%i%c", lit, lit==0 ? '\n' : ' ');
+            fprintf(inputlog_out, "%i%c", lit, lit==0 ? '\n' : ' ');
         }
     }
     int_vec_clear(data);
 }
 
 void append_integer(void) {
-    if (header) {
-        if (nb_vars == -1) {
-            nb_vars = num;
-            trusted_utils_write_int(nb_vars, f_out);
-        } else if (nb_cls == -1) {
-            nb_cls = num;
-            trusted_utils_write_int(nb_cls, f_out);
-            header = false;
-        } else abort();
-        num = 0;
-        began_num = false;
-        return;
-    }
-
     const int lit = sign * num;
     num = 0;
     sign = 1;
@@ -100,10 +90,8 @@ bool tp_inner_process(char c) {
         in_assumptions = false;
         break;
     case 'p':
-        //header = true;
-        //break;
     case 'c':
-        if (!header) comment = true;
+        comment = true;
         break;
     case 'a':
         assert(!in_assumptions);
@@ -116,8 +104,7 @@ bool tp_inner_process(char c) {
         sign = -1;
         began_num = true;
         break;
-    case '0': case '1': case '2': case '3': case '4':
-    case '5': case '6': case '7': case '8': case '9':
+    case'0':case'1':case'2':case'3':case'4':case'5':case'6':case'7':case'8':case'9':
         // Add digit to current number
         num = num*10 + (c-'0');
         began_num = true;
@@ -133,34 +120,96 @@ bool tp_inner_process(char c) {
     return false;
 }
 
-void tp_inner_init(FILE* f, struct siphash* sh) {
-    f_out = f;
-    data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
-    asmpt_data = int_vec_init(64);
-    siphash_f = sh;
-}
-
-bool tp_inner_input_finished(void) {return input_finished;}
-bool tp_inner_input_valid(void) {return !input_invalid;}
-u32 tp_inner_nb_read_clauses(void) {return nb_read_cls;}
-
 void tp_inner_output(void) {
     if (data->size > 0) output_literal_buffer();
     if (asmpt_data->size == 0) int_vec_push(asmpt_data, 0);
     // Assumptions separator
     trusted_utils_write_int(IMPCHECK_MARKER_ASSUMPTIONS, f_out);
     trusted_utils_write_ints(asmpt_data->data, asmpt_data->size, f_out);
-    if (tp_input_log()) {
-        fprintf(tp_input_log(), "a");
+    if (inputlog_out) {
+        fprintf(inputlog_out, "a");
         for (u32 i = 0; i < asmpt_data->size; i++)
-            fprintf(tp_input_log(), " %i", asmpt_data->data[i]);
-        fprintf(tp_input_log(), "\n");
+            fprintf(inputlog_out, " %i", asmpt_data->data[i]);
+        fprintf(inputlog_out, "\n");
+        fflush(inputlog_out);
     }
     // clear for next increment
     int_vec_clear(asmpt_data);
 }
 
-void tp_inner_end(void) {
+void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputlog) {
+    f = fopen(filename, "r");
+    inputlog_out = inputlog;
+    siphash_parser = siphash_init(SECRET_KEY);
+    f_out = out;
+    data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
+    asmpt_data = int_vec_init(64);
+    confirm = confirm_results;
+}
+
+bool parse_increment(void) {
+    revision++;
+
+    struct sig_obligation* item = 0;
+    if (confirm && !signature_trace_get_next(&item)) {
+        trusted_utils_log_err("Missing or malformed signature obligation!");
+        printf("s NOT VERIFIED\n");
+        return false;
+    }
+
+    // Read formula increment
+    while (true) {
+        int c_int = UNLOCKED_IO(fgetc)(f);
+        if (tp_inner_process((char) c_int)) break;
+    }
+    if (input_invalid) return false;
+
+    // Output increment with fingerprint
+    tp_inner_output();
+
+    SIG_TYPE sig_for = siphash_end_branch(siphash_parser, 0);
+    trusted_utils_write_sig((u8*) &sig_for, f_out);
+    trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
+    UNLOCKED_IO(fflush)(f_out);
+
+    // If a result with signature is provided, confirm it
+    if (confirm) {
+        if (nb_read_cls != item->cidx) {
+            snprintf(trusted_utils_msgstr, 512, "Unexpected clause index %u (read until index %u)!", item->cidx, nb_read_cls);
+            trusted_utils_log_err(trusted_utils_msgstr);
+            printf("s NOT VERIFIED\n");
+            return false;
+        }
+
+        if (item->res == 0) {
+            printf("UNKNOWN cidx=%u rev=%i\n", item->cidx, revision);
+            return true;
+        }
+
+        // recompute and validate report signature
+        SIG_TYPE sig_res = confirm_result(sig_for, (u8) item->res, item->nb_lits, item->lits);
+        if (!trusted_utils_equal_signatures(sig_res, item->sig_res)) {
+            trusted_utils_log_err("Result signature does not match!");
+            printf("s NOT VERIFIED\n");
+            return false;
+        }
+
+        if (item->res == 10)
+            printf("s VERIFIED SATISFIABLE cidx=%u rev=%i\n", item->cidx, revision);
+        if (item->res == 20)
+            printf("s VERIFIED UNSATISFIABLE cidx=%u rev=%i\n", item->cidx, revision);
+    }
+    return true;
+}
+
+bool tp_parse(void) {
+    while (!input_finished) {
+        if (!parse_increment()) break;
+    }
+    return input_finished && !input_invalid;
+}
+
+void tp_end(void) {
     int_vec_free(data);
     int_vec_free(asmpt_data);
 }

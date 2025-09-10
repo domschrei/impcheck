@@ -111,7 +111,8 @@ bool top_check_import(unsigned long id, int* literals, int nb_literals,
 }
 
 bool top_check_delete(const unsigned long* ids, int nb_ids) {
-    return lrat_check_delete_clause(ids, nb_ids);
+    valid = valid && lrat_check_delete_clause(ids, nb_ids);
+    return valid;
 }
 
 bool top_check_validate_unsat(u64 id, int* failed, int size, SIG_TYPE* out_signature_or_null) {
