@@ -41,6 +41,7 @@ bool confirm;
 
 int revision = -1;
 struct siphash* siphash_parser;
+struct sig_obligation* confirm_item = 0;
 
 void output_literal_buffer(void) {
     siphash_update(siphash_parser, (unsigned char*) data->data, data->size * sizeof(int));
@@ -148,14 +149,6 @@ void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputl
 }
 
 bool parse_increment(void) {
-    revision++;
-
-    struct sig_obligation* item = 0;
-    if (confirm && !signature_trace_get_next(&item)) {
-        trusted_utils_log_err("Missing or malformed signature obligation!");
-        printf("s NOT VERIFIED\n");
-        return false;
-    }
 
     // Read formula increment
     while (true) {
@@ -172,18 +165,27 @@ bool parse_increment(void) {
     trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
     UNLOCKED_IO(fflush)(f_out);
 
+    if (!confirm) return true;
+
     // If a result with signature is provided, confirm it
-    if (confirm) {
-        if (nb_read_cls != item->cidx) {
+    while (confirm_item || signature_trace_get_next(&confirm_item)) {
+
+        struct sig_obligation* item = confirm_item;
+        if (nb_read_cls < item->cidx) {
+            return true; // not relevant yet, but keep item for next call
+        }
+        if (nb_read_cls > item->cidx) {
             snprintf(trusted_utils_msgstr, 512, "Unexpected clause index %u (read until index %u)!", item->cidx, nb_read_cls);
             trusted_utils_log_err(trusted_utils_msgstr);
             printf("s NOT VERIFIED\n");
             return false;
         }
+        confirm_item = 0;
+        revision++;
 
         if (item->res == 0) {
             printf("UNKNOWN cidx=%u rev=%i\n", item->cidx, revision);
-            return true;
+            continue;
         }
 
         // recompute and validate report signature
