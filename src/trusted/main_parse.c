@@ -8,10 +8,16 @@
 
 int main(int argc, char *argv[]) {
 
+    if (argc <= 1) {
+        printf("Usage: %s -key-seed=<key-seed> -formula=<input-file> -output=<output-file>"
+            " [-input-log=<log-file-for-input>]\n", argv[0]);
+        return 1;
+    }
+
     const char *formula_input = "", *fifo_parsed_formula = "", *seed_str = "0", *inputlog = "";
     for (int i = 0; i < argc; i++) {
-        trusted_utils_try_match_arg(argv[i], "-formula-input=", &formula_input);
-        trusted_utils_try_match_arg(argv[i], "-fifo-parsed-formula=", &fifo_parsed_formula);
+        trusted_utils_try_match_arg(argv[i], "-formula=", &formula_input);
+        trusted_utils_try_match_arg(argv[i], "-output=", &fifo_parsed_formula);
         trusted_utils_try_match_arg(argv[i], "-key-seed=", &seed_str);
         trusted_utils_try_match_arg(argv[i], "-input-log=", &inputlog);
     }

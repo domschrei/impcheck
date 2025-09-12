@@ -10,7 +10,6 @@ if(IMPCHECK_FLUSH_ALWAYS)
     add_definitions("-DIMPCHECK_FLUSH_ALWAYS=${IMPCHECK_FLUSH_ALWAYS}")
 endif()
 
-set(src_parse "src/trusted/trusted_parser.c")
 if(IMPCHECK_COMPRESS EQUAL 1)
     add_definitions("-DIMPCHECK_COMPRESS=1")
 endif()
@@ -20,31 +19,31 @@ file(WRITE src/trusted/salt.h "#define IMPCHECK_SALT " ${IMPCHECK_SALT})
 
 add_executable(impcheck_parse
     src/writer.c
-    src/trusted/clausecompress.c
+    src/trusted/clause.c
     src/trusted/sort.c
     src/trusted/confirm.c
     src/trusted/hash.c
     src/trusted/keygen.c
+    src/trusted/pointer_storage.c
     src/trusted/secret.c
     src/trusted/siphash.c
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
-    ${src_parse}
+    src/trusted/trusted_parser.c
     src/trusted/signature_trace.c
     src/trusted/main_parse.c
 )
 add_executable(impcheck_check 
     src/writer.c
-    src/trusted/clausecompress.c
+    src/trusted/clause.c
     src/trusted/sort.c
     src/trusted/confirm.c
     src/trusted/hash.c
     src/trusted/keygen.c
-    src/trusted/lrat_check.c
+    src/trusted/check.c
     src/trusted/pointer_storage.c
     src/trusted/secret.c
     src/trusted/siphash.c
-    src/trusted/top_check.c
     src/trusted/trusted_checker.c
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
@@ -52,16 +51,17 @@ add_executable(impcheck_check
 )
 add_executable(impcheck_confirm
     src/writer.c
-    src/trusted/clausecompress.c
+    src/trusted/clause.c
     src/trusted/confirm.c
     src/trusted/hash.c
     src/trusted/keygen.c
+    src/trusted/pointer_storage.c
     src/trusted/secret.c
     src/trusted/siphash.c
     src/trusted/sort.c
     src/trusted/trusted_utils.c
     src/trusted/vectors.c
-    ${src_parse}
+    src/trusted/trusted_parser.c
     src/trusted/signature_trace.c
     src/trusted/main_confirm.c
 )

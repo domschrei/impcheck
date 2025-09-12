@@ -1,7 +1,8 @@
 
-#include "clausecompress.h"
+#include "clause.h"
 
 #include "assert.h"
+#include "pointer_storage.h"
 #include "sort.h"
 #include "stdlib.h"
 #include "trusted_utils.h"
@@ -112,4 +113,77 @@ bool cc_get_next_decompressed_lit(struct cclause_view* view, int* out) {
     view->last = ilit;
     *out = cc_externalize_lit(ilit);
     return true;
+}
+
+
+CLSTYPE clause_init(int* data, int nb_lits) {
+#if IMPCHECK_COMPRESS
+    u8* out;
+    int size = cc_prepare_clause_and_get_compressed_size(data, nb_lits);
+    if (size <= 7) {
+        u8 inlineCls[8] = {0};
+        cc_compress_and_write_clause(data, nb_lits, size, inlineCls);
+        out = ptr_storage_create(inlineCls);
+    } else {
+        out = trusted_utils_calloc(size, 1);
+        cc_compress_and_write_clause(data, nb_lits, size, out);
+    }
+    return out;
+#else
+    int* cls = trusted_utils_calloc(nb_lits+1, sizeof(int));
+    for (int i = 0; i < nb_lits; i++) cls[i] = data[i];
+    cls[nb_lits] = 0;
+    return cls;
+#endif
+}
+
+struct cclause_view get_cclause_view(const u8** cls) {
+    struct cclause_view view;
+    const void* data = ptr_storage_get((const void**) cls);
+    view = cc_get_compressed_view((const u8*) data);
+    return view;
+}
+
+bool clauses_equivalent(const CLSTYPE left_cls, const CLSTYPE right_cls) {
+    if (!left_cls || !right_cls) return false;
+#if IMPCHECK_COMPRESS
+    if (ptr_storage_is_real_pointer(left_cls) != ptr_storage_is_real_pointer(right_cls)) return false;
+    if (!ptr_storage_is_real_pointer(left_cls)) {
+        // Fabricated pointers: Traverse and check for exactly the same data
+        u8* left = (u8*) &left_cls;
+        u8* right = (u8*) &right_cls;
+        for (u32 i = 0; i < sizeof(void*); i++) {
+            if (left[i] != right[i]) return false;
+        }
+        return true;
+    }
+    // Linear pass over compressed clause bytes, since they are "normalized" by compression
+    int idx = 0;
+    while (true) {
+        if (left_cls[idx] == 0) return right_cls[idx] == 0;
+        if (right_cls[idx] == 0) return false;
+        if (left_cls[idx] != right_cls[idx]) return false;
+        idx++;
+    }
+    return true;
+#else
+    // Quadratic check for clause equivalence -
+    // assuming that most imported clauses are rather short.
+    int lit_idx = 0;
+    for (; left_cls[lit_idx] != 0; lit_idx++) {
+        const int left_lit = left_cls[lit_idx];
+        bool found = false;
+        for (int right_lit_idx = 0; right_cls[right_lit_idx] != 0; right_lit_idx++) {
+            if (right_cls[right_lit_idx] == left_lit) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    const int left_size = lit_idx;
+    for (lit_idx = 0; right_cls[lit_idx] != 0; lit_idx++) {}
+    const int right_size = lit_idx;
+    return left_size == right_size;
+#endif
 }

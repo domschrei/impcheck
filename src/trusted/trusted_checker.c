@@ -4,10 +4,9 @@
 #include <stdlib.h>         // for free
 #include <time.h>           // for clock, CLOCKS_PER_SEC, clock_t
 #include "sort.h"
-#include "top_check.h"      // for top_check_commit_formula_sig, top_check_d...
 #include "trusted_utils.h"  // for trusted_utils_read_int, trusted_utils_log...
 #include "checker_interface.h"
-#include "lrat_check.h"
+#include "check.h"
 
 #if IMPCHECK_WRITE_DIRECTIVES
 #include <unistd.h>
@@ -97,7 +96,7 @@ int tc_run(bool check_model, bool lenient) {
 
     bool reported_error = false;
 
-    top_check_init(check_model, lenient);
+    checker_init(check_model, lenient);
 
     while (true) {
         int c = trusted_utils_read_char(input);
@@ -112,7 +111,7 @@ int tc_run(bool check_model, bool lenient) {
             const bool share = trusted_utils_read_bool(input);
             // forward to checker
             u32 cidx;
-            bool res = top_check_produce(id, buf_lits->data, nb_lits,
+            bool res = checker_produce(id, buf_lits->data, nb_lits,
                 buf_hints->data, nb_hints, share ? &buf_sig : 0, share ? &cidx : 0);
             // respond
             say(res);
@@ -134,7 +133,7 @@ int tc_run(bool check_model, bool lenient) {
             trusted_utils_read_sig((u8*) &buf_sig, input);
             const u32 cidx = trusted_utils_read_uint(input);
             // forward to checker
-            bool res = top_check_import(id, buf_lits->data, nb_lits, buf_sig, cidx);
+            bool res = checker_import(id, buf_lits->data, nb_lits, buf_sig, cidx);
             // respond
             say(res);
             nb_imported++;
@@ -145,7 +144,7 @@ int tc_run(bool check_model, bool lenient) {
             const int nb_hints = trusted_utils_read_int(input);
             read_hints(nb_hints);
             // forward to checker
-            bool res = top_check_delete(buf_hints->data, nb_hints);
+            bool res = checker_delete(buf_hints->data, nb_hints);
             // respond
             say(res);
             nb_deleted += nb_hints;
@@ -154,22 +153,22 @@ int tc_run(bool check_model, bool lenient) {
 
             const int nb_lits = trusted_utils_read_int(input);
             read_literals(nb_lits);
-            for (int i = 0; i < nb_lits; i++) top_check_load(buf_lits->data[i]);
+            for (int i = 0; i < nb_lits; i++) checker_load(buf_lits->data[i]);
             // NO FEEDBACK
 
         } else if (c == TRUSTED_CHK_BEGIN_LOAD) {
 
             trusted_utils_read_sig((u8*) &formula_sig, input);
-            top_check_commit_formula_sig(formula_sig);
+            checker_commit_formula_sig(formula_sig);
             say(true);
-            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
+            trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
 
         } else if (c == TRUSTED_CHK_END_LOAD) {
 
             int nb_assumptions = trusted_utils_read_int(input);
             read_assumptions(nb_assumptions);
-            say_with_flush(top_check_end_load(assumptions->data, nb_assumptions));
+            say_with_flush(checker_end_load(assumptions->data, nb_assumptions));
             revision++;
 
         } else if (c == TRUSTED_CHK_VALIDATE_UNSAT) {
@@ -179,10 +178,10 @@ int tc_run(bool check_model, bool lenient) {
             int* failed = trusted_utils_malloc(sizeof(int) * failed_size);
             trusted_utils_read_ints(failed, failed_size, input);
             sort_ints(failed, failed_size);
-            bool res = top_check_validate_unsat(id, failed, failed_size, &buf_sig);
+            bool res = checker_validate_unsat(id, failed, failed_size, &buf_sig);
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
-            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
+            trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
                 snprintf(trusted_utils_msgstr, 512, "rev. %i : UNSAT validated", revision);
@@ -195,10 +194,10 @@ int tc_run(bool check_model, bool lenient) {
             const int model_size = trusted_utils_read_int(input);
             int* model = trusted_utils_malloc(sizeof(int) * model_size); // exits if error
             trusted_utils_read_ints(model, model_size, input);
-            bool res = top_check_validate_sat(model, model_size, assumptions->data, assumptions->size, &buf_sig);
+            bool res = checker_validate_sat(model, model_size, assumptions->data, assumptions->size, &buf_sig);
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
-            trusted_utils_write_uint(lrat_check_get_nb_input_clauses(), output);
+            trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
                 snprintf(trusted_utils_msgstr, 512, "rev. %i : SAT validated", revision);
@@ -220,7 +219,7 @@ int tc_run(bool check_model, bool lenient) {
         writer_flush();
 #endif
 
-        if (MALLOB_UNLIKELY(!top_check_valid())) {
+        if (MALLOB_UNLIKELY(!checker_valid())) {
             if (!reported_error) {
                 trusted_utils_log_err(trusted_utils_msgstr);
                 reported_error = true;

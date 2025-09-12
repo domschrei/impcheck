@@ -130,8 +130,8 @@ u64 setup(const char* cnfInput, FILE** f_parsed_out, FILE** f_directives_out, FI
     // Fork off a parser process.
     if (do_fork()) {
         // child: parser process
-        snprintf(charbuf, 1024, "build/impcheck_parse -formula-input=%s \
-            -fifo-parsed-formula=%s -input-log=input.log",
+        snprintf(charbuf, 1024, "build/impcheck_parse -formula=%s \
+            -output=%s -input-log=input.log",
             cnfInput, pipeParsed);
         int res = system(charbuf);
         do_assert(res == 0);
@@ -141,7 +141,7 @@ u64 setup(const char* cnfInput, FILE** f_parsed_out, FILE** f_directives_out, FI
     // Fork off a checker process.
     if (do_fork()) {
         // child: checker process
-        snprintf(charbuf, 1024, "build/impcheck_check -fifo-directives=%s -fifo-feedback=%s -check-model",
+        snprintf(charbuf, 1024, "build/impcheck_check -directives=%s -feedback=%s -check-model",
             pipeDirectives, pipeFeedback);
         int res = system(charbuf);
         do_assert(res == 0);
@@ -189,7 +189,7 @@ bool confirm(const char* cnfInput) {
 
     // Execute confirmer sub-process
     char charbuf[1024];
-    snprintf(charbuf, 1024, "build/impcheck_confirm -formula-input=%s -signature-input=%s",
+    snprintf(charbuf, 1024, "build/impcheck_confirm -formula=%s -witness=%s",
         cnfInput, "sigtrace.txt");
     const int res = system(charbuf);
 

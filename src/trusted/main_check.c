@@ -11,11 +11,17 @@
 
 int main(int argc, char *argv[]) {
 
+    if (argc <= 1) {
+        printf("Usage: %s -key-seed=<key-seed> -directives=<directives-file> -feedback=<feedback-file>"
+            " [-check-model] [-lenient]\n", argv[0]);
+        return 1;
+    }
+
     const char *fifo_directives = "", *fifo_feedback = "", *seed_str = "0";
     bool check_model = false, lenient = false;
     for (int i = 1; i < argc; i++) {
-        trusted_utils_try_match_arg(argv[i], "-fifo-directives=", &fifo_directives);
-        trusted_utils_try_match_arg(argv[i], "-fifo-feedback=", &fifo_feedback);
+        trusted_utils_try_match_arg(argv[i], "-directives=", &fifo_directives);
+        trusted_utils_try_match_arg(argv[i], "-feedback=", &fifo_feedback);
         trusted_utils_try_match_arg(argv[i], "-key-seed=", &seed_str);
         trusted_utils_try_match_flag(argv[i], "-check-model", &check_model);
         trusted_utils_try_match_flag(argv[i], "-lenient", &lenient);

@@ -41,11 +41,11 @@ Note that all parser, checker, and confirmer processes involved in a solving att
 ### Isolated Execution
 
 ```
-build/impcheck_parse -key-seed=<seed> -formula-input=<path/to/cnf> -fifo-parsed-formula=<path/to/output>
-build/impcheck_check -key-seed=<seed> -fifo-directives=<path/to/input> -fifo-feedback=<path/to/output> [-check-model] [-lenient]
-build/impcheck_confirm -key-seed=<seed> -formula-input=<path/to/cnf> -result=<10|20> -result-sig=<signature>
+build/impcheck_parse -key-seed=<seed> -formula=<path/to/cnf> -output=<path/to/output> [-input-log=<path/to/logfile/for/input>]
+build/impcheck_check -key-seed=<seed> -directives=<path/to/input> -feedback=<path/to/output> [-check-model] [-lenient]
+build/impcheck_confirm -key-seed=<seed> -formula=<path/to/cnf> -witness=<path/to/witness>
 ```
-The intended mode of operation is that all paths specified via `-fifo-*` options are in fact named UNIX pipes precreated via `mkfifo`.
+The intended mode of operation is that all paths (except for `-witness`) are in fact named UNIX pipes precreated via `mkfifo`.
 However, you can also specify actual, complete files to "replay" a sequence of written directives and to write the results persistently.
 
 For `impcheck_check`, specify the optional argument `-check-model` if you also intend to get found models a.k.a. satisfying assignments checked (used together with Mallob's `-otfcm=1`). This can incur some memory overhead since deletion statements concerning original problem clauses will need to be ignored. Mallob mitigates this overhead to a degree by having each SAT process run only a single `impcheck_check` with `-check-model` enabled.
