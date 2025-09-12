@@ -152,10 +152,11 @@ void print_error_clause_full(u64 base_id, const int* lits, int nb_lits, const u6
 bool add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
     CLSTYPE cls = clause_init(lits, nb_lits);
     bool ok = true;
-    if (!loading) ok = hash_table_insert(clause_table, id, cls);
-    else {
+    if (loading) {
         u64_vec_push(input_clauses, (u64) cls);
         assert(id == input_clauses->size);
+    } else {
+        ok = hash_table_insert(clause_table, id, cls);
     }
     if (!ok) {
         if (lenient) {
@@ -395,9 +396,10 @@ bool validate_unsat(u64 id, const int* failed, int size) {
 
     // Make sure that each literal of the conclusion clause marks a failed unit.
     aidx = 0;
+    int lit;
     bool ok = true;
     for (u32 cidx = 0; cidx < vec_cls->size; cidx++) {
-        int lit = vec_cls->data[cidx];
+        lit = vec_cls->data[cidx];
         while (aidx < size && copy_failed[aidx] != lit) aidx++;
         if (aidx == size) {
             ok = false;

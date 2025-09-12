@@ -42,11 +42,14 @@ struct cclause_view get_cclause_view(const u8** cls);
 #if IMPCHECK_COMPRESS
 #define FOR_LIT_IN_CLAUSE(C, L) \
         struct cclause_view view_ ## C ## _ ## L = get_cclause_view((const CLSTYPE*) &C); \
-        int L; \
-        while (cc_get_next_decompressed_lit(&view_ ## C ## _ ## L, &L))
+        for (int L; cc_get_next_decompressed_lit(&view_ ## C ## _ ## L, &L); )
 #else
-#define FOR_LIT_IN_CLAUSE(cls, lit) \
-        for (int lit = cls[0]; lit != 0; lit = *((&lit)+1))
+#define FOR_LIT_IN_CLAUSE(C, L) \
+        for ( \
+            int idx_ ## C ## _ ## L = 0, L = C[idx_ ## C ## _ ## L]; \
+            L != 0; \
+            idx_ ## C ## _ ## L += 1, L = C[idx_ ## C ## _ ## L] \
+        )
 #endif
 
 // Check whether clauses are equivalent.
