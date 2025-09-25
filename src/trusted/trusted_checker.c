@@ -38,7 +38,7 @@ bool do_logging = true;
 SIG_TYPE buf_sig;
 struct int_vec* buf_lits;
 struct u64_vec* buf_hints;
-struct int_vec* assumptions;
+struct int_vec* buf_assumptions;
 
 
 void say(bool ok) {
@@ -66,9 +66,9 @@ void read_hints(int nb_hints) {
 }
 
 void read_assumptions(int nb_assumptions) {
-    int_vec_reserve(assumptions, nb_assumptions);
-    trusted_utils_read_ints(assumptions->data, nb_assumptions, input);
-    assumptions->size = nb_assumptions;
+    int_vec_reserve(buf_assumptions, nb_assumptions);
+    trusted_utils_read_ints(buf_assumptions->data, nb_assumptions, input);
+    buf_assumptions->size = nb_assumptions;
 }
 
 void tc_init(const char* fifo_in, const char* fifo_out) {
@@ -78,13 +78,13 @@ void tc_init(const char* fifo_in, const char* fifo_out) {
     if (!output) trusted_utils_exit_eof();
     buf_lits = int_vec_init(1 << 14);
     buf_hints = u64_vec_init(1 << 14);
-    assumptions = int_vec_init(16);
+    buf_assumptions = int_vec_init(16);
 }
 
 void tc_end(void) {
     int_vec_free(buf_lits);
     u64_vec_free(buf_hints);
-    int_vec_free(assumptions);
+    int_vec_free(buf_assumptions);
     fclose(output);
     fclose(input);
 }
@@ -168,7 +168,7 @@ int tc_run(bool check_model, bool lenient) {
 
             int nb_assumptions = trusted_utils_read_int(input);
             read_assumptions(nb_assumptions);
-            say_with_flush(checker_end_load(assumptions->data, nb_assumptions));
+            say_with_flush(checker_end_load(buf_assumptions->data, nb_assumptions));
             revision++;
 
         } else if (c == TRUSTED_CHK_VALIDATE_UNSAT) {
@@ -194,7 +194,7 @@ int tc_run(bool check_model, bool lenient) {
             const int model_size = trusted_utils_read_int(input);
             int* model = trusted_utils_malloc(sizeof(int) * model_size); // exits if error
             trusted_utils_read_ints(model, model_size, input);
-            bool res = checker_validate_sat(model, model_size, assumptions->data, assumptions->size, &buf_sig);
+            bool res = checker_validate_sat(model, model_size, &buf_sig);
             say(res);
             trusted_utils_write_sig((u8*) &buf_sig, output);
             trusted_utils_write_uint(checker_get_nb_input_clauses(), output);

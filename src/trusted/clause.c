@@ -7,6 +7,8 @@
 #include "stdlib.h"
 #include "trusted_utils.h"
 #include "stdint.h"
+#include <stdio.h>
+#include <unistd.h>
 
 // -1 1  -2 2 -3  3 -4  4 -5  5 ...
 // v  v  v  v  v  v  v  v  v  v ...
@@ -71,8 +73,8 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
     u32 last = 0;
     for (int i = 0; i < nb_lits; i++) {
         u32 ilit = lits[i];
-        assert(ilit == 0 || ilit > last);
-        size += cc_nb_needed_varlength_bytes(ilit - last);
+        // Only count non-duplicate literals towards the total compressed size
+        if (i == 0 || ilit > last) size += cc_nb_needed_varlength_bytes(ilit - last);
         lits[i] = ilit - last;
         last = ilit;
     }
@@ -87,8 +89,17 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
 void cc_compress_and_write_clause(int* lits, int nb_lits, u32 compr_size, u8* out) {
     u32 idx = cc_write_varlength(compr_size, out);
-    for (int i = 0; i < nb_lits; i++) {
+    // Write non-duplicate literals' differences in variable-length coding
+    for (int i = 0; i < nb_lits; i++) if (i == 0 || lits[i] > 0) {
         idx += cc_write_varlength(lits[i], out+idx);
+    }
+    if (MALLOB_UNLIKELY(idx != compr_size)) {
+        printf("[IMPCHK %i] ERR Invalid compressed size %u vs. advertised %u\n", getpid(), idx, compr_size);
+        printf("[IMPCHK %i] ERR diff-encoded internal lits:", getpid());
+        for (int i = 0; i < nb_lits; i++) printf(" %i", lits[i]);
+        printf("\n");
+        fflush(stdout);
+        abort();
     }
 }
 

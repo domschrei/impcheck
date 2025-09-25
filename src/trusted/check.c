@@ -70,7 +70,7 @@ SIG_TYPE last_f_sig;
 
 struct siphash* siphash_f;
 
-int* a_ptr;
+int* assumptions;
 int nb_assumptions = 0;
 
 bool parsed_formula = false;
@@ -299,9 +299,9 @@ bool validate_sat(int* model, u64 size) {
     int aidx = 0;
     for (u32 midx = 0; midx < size; midx++) {
         int lit = model[midx];
-        while (aidx < nb_assumptions && abs(a_ptr[aidx]) != abs(lit)) aidx++;
+        while (aidx < nb_assumptions && abs(assumptions[aidx]) != abs(lit)) aidx++;
         if (aidx == nb_assumptions) break; // no more assumptions in the remaining model
-        int asmpt = a_ptr[aidx];
+        int asmpt = assumptions[aidx];
         if (asmpt != lit) {
             snprintf(trusted_utils_msgstr, 512, "SAT validation: assumption %i broken by model lit %i", asmpt, lit);
             return false;
@@ -370,7 +370,7 @@ bool validate_unsat(u64 id, const int* failed, int size) {
     int aidx = 0;
     for (int fidx = 0; fidx < size; fidx++) {
         int lit = copy_failed[fidx];
-        while (aidx < nb_assumptions && a_ptr[aidx] != lit) aidx++;
+        while (aidx < nb_assumptions && assumptions[aidx] != lit) aidx++;
         if (aidx == nb_assumptions) {
             // Failed literal was not one of the assumptions!
             snprintf(trusted_utils_msgstr, 512, "UNSAT validation: failed lit %i not an assumption!", lit);
@@ -477,7 +477,7 @@ void checker_load(int lit) {
     }
 }
 
-bool checker_end_load(int* assumptions, int size) {
+bool checker_end_load(int* a_ptr, int a_size) {
     if (!valid) return false;
 
     if (!loading) {
@@ -495,9 +495,9 @@ bool checker_end_load(int* assumptions, int size) {
     loading = false;
     nb_loaded_clauses = id_to_add-1;
 
-    a_ptr = assumptions;
-    nb_assumptions = size;
-    sort_ints(a_ptr, nb_assumptions);
+    assumptions = a_ptr;
+    nb_assumptions = a_size;
+    sort_ints(assumptions, nb_assumptions);
 
     // Check against provided signature
     valid = trusted_utils_equal_signatures(last_f_sig, formula_signature);
@@ -579,7 +579,7 @@ bool checker_validate_unsat(u64 id, int* failed, int size, SIG_TYPE* out_signatu
     return true;
 }
 
-bool checker_validate_sat(int* model, u64 size, int* assumptions, u32 nb_assumptions, SIG_TYPE* out_signature_or_null) {
+bool checker_validate_sat(int* model, u64 size, SIG_TYPE* out_signature_or_null) {
     if (!valid) return false;
     valid = validate_sat(model, size);
     if (!valid) {

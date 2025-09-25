@@ -14,6 +14,6 @@ bool checker_import(unsigned long id, int* literals, int nb_literals,
     SIG_TYPE signature_data, u32 cidx);
 bool checker_delete(const unsigned long* ids, int nb_ids);
 bool checker_validate_unsat(u64 id, int* failed, int size, SIG_TYPE* out_signature_or_null);
-bool checker_validate_sat(int* model, u64 size, int* assumptions, u32 nb_assumptions, SIG_TYPE* out_signature_or_null);
+bool checker_validate_sat(int* model, u64 size, SIG_TYPE* out_signature_or_null);
 bool checker_valid(void);
 u32 checker_get_nb_input_clauses(void);
