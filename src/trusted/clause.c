@@ -63,19 +63,20 @@ u8 cc_read_varlength(const u8* in, u32* out) {
 int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
     // Internalize literals in-place and then sort them in increasing order
+    u32* ulits = (u32*) lits;
     for (int i = 0; i < nb_lits; i++) {
-        lits[i] = cc_internalize_lit(lits[i]);
+        ulits[i] = cc_internalize_lit(lits[i]);
     }
-    sort_ints(lits, nb_lits);
+    sort_uints(ulits, nb_lits);
 
     // Compute size of the output data with variable-length differential coding
     u32 size = 0;
     u32 last = 0;
     for (int i = 0; i < nb_lits; i++) {
-        u32 ilit = lits[i];
+        u32 ilit = ulits[i];
         // Only count non-duplicate literals towards the total compressed size
         if (i == 0 || ilit > last) size += cc_nb_needed_varlength_bytes(ilit - last);
-        lits[i] = ilit - last;
+        ulits[i] = ilit - last;
         last = ilit;
     }
     // Somewhat awkward to find the correct number of bytes to have enough room for itself ...
@@ -89,14 +90,15 @@ int cc_prepare_clause_and_get_compressed_size(int* lits, int nb_lits) {
 
 void cc_compress_and_write_clause(int* lits, int nb_lits, u32 compr_size, u8* out) {
     u32 idx = cc_write_varlength(compr_size, out);
+    u32* ulits = (u32*) lits;
     // Write non-duplicate literals' differences in variable-length coding
-    for (int i = 0; i < nb_lits; i++) if (i == 0 || lits[i] > 0) {
-        idx += cc_write_varlength(lits[i], out+idx);
+    for (int i = 0; i < nb_lits; i++) if (i == 0 || ulits[i] > 0) {
+        idx += cc_write_varlength(ulits[i], out+idx);
     }
     if (MALLOB_UNLIKELY(idx != compr_size)) {
         printf("[IMPCHK %i] ERR Invalid compressed size %u vs. advertised %u\n", getpid(), idx, compr_size);
         printf("[IMPCHK %i] ERR diff-encoded internal lits:", getpid());
-        for (int i = 0; i < nb_lits; i++) printf(" %i", lits[i]);
+        for (int i = 0; i < nb_lits; i++) printf(" %u", ulits[i]);
         printf("\n");
         fflush(stdout);
         abort();
