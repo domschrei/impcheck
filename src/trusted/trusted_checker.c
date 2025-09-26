@@ -184,8 +184,8 @@ int tc_run(bool check_model, bool lenient) {
             trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
-                snprintf(trusted_utils_msgstr, 512, "rev. %i : UNSAT validated", revision);
-                trusted_utils_log(trusted_utils_msgstr);
+                //snprintf(trusted_utils_msgstr, 512, "rev. %i : UNSAT validated", revision);
+                //trusted_utils_log(trusted_utils_msgstr);
             }
             free(failed);
 
@@ -200,8 +200,8 @@ int tc_run(bool check_model, bool lenient) {
             trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
             UNLOCKED_IO(fflush)(output);
             if (res) {
-                snprintf(trusted_utils_msgstr, 512, "rev. %i : SAT validated", revision);
-                trusted_utils_log(trusted_utils_msgstr);
+                //snprintf(trusted_utils_msgstr, 512, "rev. %i : SAT validated", revision);
+                //trusted_utils_log(trusted_utils_msgstr);
             }
             free(model);
 
