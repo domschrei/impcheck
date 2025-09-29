@@ -221,6 +221,9 @@ int tc_run(bool check_model, bool lenient) {
 
         if (MALLOB_UNLIKELY(!checker_valid())) {
             if (!reported_error) {
+                char msg[512];
+                snprintf(msg, 512, "State invalid after directive %c\n", (char) c);
+                trusted_utils_log_err(msg);
                 trusted_utils_log_err(trusted_utils_msgstr);
                 reported_error = true;
             }
