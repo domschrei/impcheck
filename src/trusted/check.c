@@ -176,11 +176,15 @@ bool add_axiomatic_clause(u64 id, int* lits, int nb_lits) {
 }
 
 signed char get_var_value(u32 v) {
-    while (v >= var_values->size) i8_vec_push(var_values, 0);
+    if (MALLOB_UNLIKELY(v >= var_values->size)) {
+        while (v >= var_values->size) i8_vec_push(var_values, 0);
+    }
     return var_values->data[v];
 }
 void set_var_value(u32 v, signed char val) {
-    while (v >= var_values->size) i8_vec_push(var_values, 0);
+    if (MALLOB_UNLIKELY(v >= var_values->size)) {
+        while (v >= var_values->size) i8_vec_push(var_values, 0);
+    }
     var_values->data[v] = val;
 }
 
@@ -195,8 +199,27 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
     int_vec_reserve(assigned_units, nb_lits + nb_hints);
     // Assume the negation of each literal in the new clause
     for (int i = 0; i < nb_lits; i++) {
-        const int var = lits[i] > 0 ? lits[i] : -lits[i];
-        set_var_value(var, lits[i]>0 ? -1 : 1); // negated
+        // Here and further below, we employ some low-level optimizations
+        // to avoid branch mispredictions when converting a literal to its
+        // variable and the corresponding value of the variable.
+        const int positiveFactor = 2 * (lits[i] > 0);
+        const int var = positiveFactor * lits[i] - lits[i];
+        const signed char sign = 1 - positiveFactor; // negated
+        if (MALLOB_UNLIKELY(get_var_value(var) == -sign)) {
+            // This variable is already set in the opposite polarity.
+            // => The clause is tautological. Accept iff no hints are provided
+            // (otherwise the hints are superfluous and thus wrong).
+            bool ok = nb_hints == 0;
+            if (!ok) {
+                snprintf(trusted_utils_msgstr, 512, "Derivation %lu: Clause is tautological"
+                    " (%i v -%i) but comes with %i>0 hints",
+                    base_id, var, var, nb_hints);
+                print_error_clause_full(base_id, lits, nb_lits, hints, nb_hints);
+            }
+            reset_assignments();
+            return ok;
+        }
+        set_var_value(var, sign);
         int_vec_push(assigned_units, var); // remember to reset later
     }
 
@@ -216,8 +239,10 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
         // Interpret hint clause (should derive a new unit clause)
         int new_unit = 0;
         FOR_LIT_IN_CLAUSE(cls, lit) {
-            const int var = lit > 0 ? lit : -lit;
-            if (get_var_value(var) == 0) {
+            const int positiveFactor = 2 * (lit > 0);
+            const int var = positiveFactor * lit - lit;
+            const signed char sign = get_var_value(var);
+            if (sign == 0) {
                 // Literal is unassigned
                 if (MALLOB_UNLIKELY(new_unit != 0)) {
                     // ERROR - multiple unassigned literals in hint clause!
@@ -230,8 +255,7 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
                 continue;
             }
             // Literal is fixed
-            const bool sign = get_var_value(var) > 0;
-            if (MALLOB_UNLIKELY(sign == (lit>0))) {
+            if (MALLOB_UNLIKELY(2 * sign == positiveFactor)) {
                 // ERROR - clause is satisfied, so it is not a correct hint
                 snprintf(trusted_utils_msgstr, 512, "Derivation %lu: hint %lu: literal %i is satisfied",
                     base_id, hint_id, lit);
@@ -257,8 +281,9 @@ bool check_clause(u64 base_id, const int* lits, int nb_lits, const u64* hints, i
             return true;
         }
         // Insert the new derived unit clause
-        int var = new_unit > 0 ? new_unit : -new_unit;
-        set_var_value(var, new_unit>0 ? 1 : -1);
+        const int positiveFactor = 2 * (new_unit > 0);
+        const int var = positiveFactor * new_unit - new_unit;
+        set_var_value(var, positiveFactor - 1);
         int_vec_push(assigned_units, var); // remember to reset later
     }
 
@@ -282,6 +307,31 @@ bool check_and_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int 
     return add_axiomatic_clause(id, lits, nb_lits);
 }
 
+inline void check_literal_in_model(int lit, int* model, u64 size, bool* error, bool* satisfied) {
+    const int var = 2 * (lit>0) * lit - lit;
+    if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
+        // ERROR - model does not cover this variable
+        snprintf(trusted_utils_msgstr, 512, "SAT validation: model does not cover variable %i", var);
+        *error = true;
+        return;
+    }
+    // Is the literal satisfied in the model?
+    int modelLit = model[var-1];
+    if (MALLOB_UNLIKELY(modelLit != var && modelLit != -var && modelLit != 0)) {
+        // ERROR - clause not found
+        snprintf(trusted_utils_msgstr, 512, "SAT validation: unexpected literal %i in assignment of variable %i", modelLit, var);
+        *error = true;
+        return;
+    }
+    if (modelLit == 0) {
+        // The value of this variable allegedly does not matter,
+        // so let us just assign the fitting value.
+        // If this leads to an error, it does matter, which means that the specified model is wrong.
+        modelLit = model[var-1] = lit;
+        *satisfied = true;
+    } else *satisfied = modelLit == lit;
+}
+
 bool validate_sat(int* model, u64 size) {
 
     // Still loading the formula?
@@ -295,15 +345,15 @@ bool validate_sat(int* model, u64 size) {
         return false;
     }
 
+    bool error = false, satisfied = false;
+
     // Check that all assumptions are satisfied by the model
-    int aidx = 0;
-    for (u32 midx = 0; midx < size; midx++) {
-        int lit = model[midx];
-        while (aidx < nb_assumptions && abs(assumptions[aidx]) != abs(lit)) aidx++;
-        if (aidx == nb_assumptions) break; // no more assumptions in the remaining model
-        int asmpt = assumptions[aidx];
-        if (asmpt != lit) {
-            snprintf(trusted_utils_msgstr, 512, "SAT validation: assumption %i broken by model lit %i", asmpt, lit);
+    for (int aidx = 0; aidx < nb_assumptions; aidx++) {
+        const int a = assumptions[aidx];
+        check_literal_in_model(a, model, size, &error, &satisfied);
+        if (MALLOB_UNLIKELY(error)) return false;
+        if (MALLOB_UNLIKELY(!satisfied)) {
+            snprintf(trusted_utils_msgstr, 512, "SAT validation: assumption %i not satisfied", a);
             return false;
         }
     }
@@ -317,35 +367,14 @@ bool validate_sat(int* model, u64 size) {
             return false;
         }
         // Iterate over the literals of the clause
-        bool satisfied = false;
+        bool cls_satisfied = false;
         FOR_LIT_IN_CLAUSE(cls, lit) {
-            const int var = lit>0 ? lit : -lit;
-            if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
-                // ERROR - model does not cover this variable
-                snprintf(trusted_utils_msgstr, 512, "SAT validation: model does not cover variable %i", var);
-                return false;
-            }
-            // Is the literal satisfied in the model?
-            int modelLit = model[var-1];
-            if (MALLOB_UNLIKELY(modelLit != var && modelLit != -var && modelLit != 0)) {
-                // ERROR - clause not found
-                snprintf(trusted_utils_msgstr, 512, "SAT validation: unexpected literal %i in assignment of variable %i", modelLit, var);
-                return false;
-            }
-            if (modelLit == 0) {
-                // The value of this variable allegedly does not matter,
-                // so let us just assign the fitting value.
-                // If this leads to an error, it does matter, which means that the specified model is wrong.
-                modelLit = model[var-1] = lit;
-            }
-            if (modelLit == lit) {
-                // Literal satisfied under the model satisfies the clause
-                satisfied = true;
-                break;
-            }
+            check_literal_in_model(lit, model, size, &error, &satisfied);
+            if (MALLOB_UNLIKELY(error)) return false;
+            if (satisfied) cls_satisfied = true;
         }
         // Clause NOT satisfied?
-        if (MALLOB_UNLIKELY(!satisfied)) {
+        if (MALLOB_UNLIKELY(!cls_satisfied)) {
             // ERROR - unsatisfied clause(s) remain(s)
             snprintf(trusted_utils_msgstr, 512, "SAT validation: original clause %lu not satisfied", id);
             return false;
@@ -460,6 +489,7 @@ void checker_commit_formula_sig(SIG_TYPE f_sig) {
     //sig_vec_push(signatures, formula_signature);
     valid = !loading;
     if (valid) loading = true;
+    else snprintf(trusted_utils_msgstr, 512, "Cannot commit to new formula fingerprint while already in a LOADING state!");
 }
 
 void checker_load(int lit) {

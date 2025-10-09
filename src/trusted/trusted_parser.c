@@ -32,6 +32,7 @@ bool increment_finished = false;
 bool input_finished = false;
 bool input_invalid = false;
 bool began_num = false;
+bool began_output = false;
 
 int num = 0;
 int sign = 1;
@@ -53,6 +54,7 @@ void output_literal_buffer(void) {
         }
     }
     int_vec_clear(data);
+    began_output = true;
 }
 
 void append_integer(void) {
@@ -81,7 +83,6 @@ bool tp_inner_process(char c) {
     switch (uc) {
     case EOF:
         if (began_num) append_integer();
-        increment_finished = true;
         input_finished = true;
         break;
     case '\n':
@@ -114,16 +115,11 @@ bool tp_inner_process(char c) {
         break;
     }
 
-    if (increment_finished) {
-        increment_finished = false;
-        return true;
-    }
-    return false;
+    return input_finished || increment_finished;
 }
 
 void tp_inner_output(void) {
     if (data->size > 0) output_literal_buffer();
-    if (asmpt_data->size == 0) int_vec_push(asmpt_data, 0);
     // Assumptions separator
     trusted_utils_write_int(IMPCHECK_MARKER_ASSUMPTIONS, f_out);
     trusted_utils_write_ints(asmpt_data->data, asmpt_data->size, f_out);
@@ -151,11 +147,17 @@ void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputl
 bool parse_increment(void) {
 
     // Read formula increment
+    increment_finished = false;
+    began_output = false;
     while (true) {
         int c_int = UNLOCKED_IO(fgetc)(f);
         if (tp_inner_process((char) c_int)) break;
     }
-    if (input_invalid) return false;
+    if (input_finished && !increment_finished) {
+        input_invalid = began_output || data->size > 0 || asmpt_data->size > 0;
+        trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
+        return !input_invalid;
+    }
 
     // Output increment with fingerprint
     tp_inner_output();
@@ -208,6 +210,7 @@ bool tp_parse(void) {
     while (!input_finished) {
         if (!parse_increment()) break;
     }
+    UNLOCKED_IO(fflush)(f_out);
     return input_finished && !input_invalid;
 }
 

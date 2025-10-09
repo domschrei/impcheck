@@ -162,7 +162,7 @@ int tc_run(bool check_model, bool lenient) {
             checker_commit_formula_sig(formula_sig);
             say(true);
             trusted_utils_write_uint(checker_get_nb_input_clauses(), output);
-            UNLOCKED_IO(fflush)(output);
+            //UNLOCKED_IO(fflush)(output);
 
         } else if (c == TRUSTED_CHK_END_LOAD) {
 
@@ -222,10 +222,11 @@ int tc_run(bool check_model, bool lenient) {
         if (MALLOB_UNLIKELY(!checker_valid())) {
             if (!reported_error) {
                 char msg[512];
-                snprintf(msg, 512, "State invalid after directive %c\n", (char) c);
+                snprintf(msg, 512, "State invalid after directive %c", (char) c);
                 trusted_utils_log_err(msg);
                 trusted_utils_log_err(trusted_utils_msgstr);
                 reported_error = true;
+                fflush(stdout);
             }
         }
     }
@@ -233,6 +234,7 @@ int tc_run(bool check_model, bool lenient) {
     float elapsed = (float) (clock() - start) / CLOCKS_PER_SEC;
     snprintf(trusted_utils_msgstr, 512, "END cpu:%.3f prod:%lu imp:%lu del:%lu", elapsed, nb_produced, nb_imported, nb_deleted);
     trusted_utils_log(trusted_utils_msgstr);
+    fflush(stdout);
 
     return 0;
 }
