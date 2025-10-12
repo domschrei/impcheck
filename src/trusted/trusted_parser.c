@@ -154,9 +154,22 @@ bool parse_increment(void) {
         if (tp_inner_process((char) c_int)) break;
     }
     if (input_finished && !increment_finished) {
-        input_invalid = began_output || data->size > 0 || asmpt_data->size > 0;
-        trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
-        return !input_invalid;
+        // Unexpected end-of-file - something is "missing", at least the assumptions.
+        bool read_some_lits = began_output || data->size > 0;
+        if (read_some_lits && !in_assumptions) {
+            // We *did* read some valid literals, we just didn't read any assumptions.
+            // This actually passes as a finished, assumption-free increment.
+            int_vec_push(asmpt_data, 0); // empty set of assumptions
+            increment_finished = true;
+        } else {
+            // Either no data at all or began but unfinished assumptions:
+            // Does not pass as a completed increment.
+            // If some literals were read, the input is marked as invalid;
+            // otherwise there's just no increment left.
+            input_invalid = read_some_lits || asmpt_data->size > 0;
+            trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
+            return !input_invalid;
+        }
     }
 
     // Output increment with fingerprint
@@ -166,6 +179,12 @@ bool parse_increment(void) {
     trusted_utils_write_sig((u8*) &sig_for, f_out);
     trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
     UNLOCKED_IO(fflush)(f_out);
+
+    // Marker for end of input if needed
+    if (input_finished) {
+        trusted_utils_write_int(IMPCHECK_MARKER_ENDOFINCREMENT, f_out);
+        UNLOCKED_IO(fflush)(f_out);
+    }
 
     if (!confirm) return true;
 
