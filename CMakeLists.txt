@@ -9,9 +9,12 @@ endif()
 if(IMPCHECK_FLUSH_ALWAYS)
     add_definitions("-DIMPCHECK_FLUSH_ALWAYS=${IMPCHECK_FLUSH_ALWAYS}")
 endif()
-
-execute_process(COMMAND bash "-c" "dd if=/dev/urandom count=8 bs=1 2>/dev/null | od -t u8 | awk '{print $2\"UL\"}' | head -1" OUTPUT_VARIABLE IMPCHECK_SALT)
-file(WRITE src/trusted/salt.h "#define IMPCHECK_SALT " ${IMPCHECK_SALT})
+if(IMPCHECK_OVERRIDE_SALT)
+    file(WRITE src/trusted/salt.h "#define IMPCHECK_SALT " ${IMPCHECK_OVERRIDE_SALT})
+else()
+    execute_process(COMMAND bash "-c" "dd if=/dev/urandom count=8 bs=1 2>/dev/null | od -t u8 | awk '{print $2\"UL\"}' | head -1" OUTPUT_VARIABLE IMPCHECK_SALT)
+    file(WRITE src/trusted/salt.h "#define IMPCHECK_SALT " ${IMPCHECK_SALT})
+endif()
 
 add_executable(impcheck_parse
     src/trusted/hash.c src/trusted/secret.c src/trusted/siphash.c src/trusted/trusted_parser.c src/trusted/trusted_utils.c src/trusted/vectors.c src/writer.c 
