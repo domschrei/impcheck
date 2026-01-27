@@ -307,7 +307,7 @@ bool check_and_add_clause(u64 id, int* lits, int nb_lits, const u64* hints, int 
     return add_axiomatic_clause(id, lits, nb_lits);
 }
 
-inline void check_literal_in_model(int lit, int* model, u64 size, bool* error, bool* satisfied) {
+static inline void check_literal_in_model(int lit, int* model, u64 size, bool* error, bool* satisfied) {
     const int var = 2 * (lit>0) * lit - lit;
     if (MALLOB_UNLIKELY((u64) (var-1) >= size)) {
         // ERROR - model does not cover this variable
