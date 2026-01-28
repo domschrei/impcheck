@@ -10,7 +10,9 @@ if(IMPCHECK_FLUSH_ALWAYS)
     add_definitions("-DIMPCHECK_FLUSH_ALWAYS=${IMPCHECK_FLUSH_ALWAYS}")
 endif()
 
-if(IMPCHECK_COMPRESS EQUAL 1)
+if(IMPCHECK_COMPRESS EQUAL 0)
+    add_definitions("-DIMPCHECK_COMPRESS=0")
+else()
     add_definitions("-DIMPCHECK_COMPRESS=1")
 endif()
 
