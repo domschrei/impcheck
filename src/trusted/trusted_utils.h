@@ -46,6 +46,7 @@ void* trusted_utils_malloc(u64 size);
 void* trusted_utils_realloc(void* from, u64 new_size);
 void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj);
 
+bool trusted_utils_peek_eof(FILE* file);
 void trusted_utils_read_objs(void* data, size_t size_per_obj, size_t nb_objs, FILE* file);
 bool trusted_utils_read_bool(FILE* file);
 int trusted_utils_read_char(FILE* file);

@@ -39,6 +39,7 @@ int sign = 1;
 u32 nb_read_cls = 0;
 
 bool confirm;
+bool lenient_cidx;
 
 int revision = -1;
 struct siphash* siphash_parser;
@@ -134,7 +135,7 @@ void tp_inner_output(void) {
     int_vec_clear(asmpt_data);
 }
 
-void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputlog) {
+void tp_init(const char* filename, FILE* out, bool confirm_results, bool infer_cidx, FILE* inputlog) {
     f = fopen(filename, "r");
     inputlog_out = inputlog;
     siphash_parser = siphash_init(SECRET_KEY);
@@ -142,6 +143,7 @@ void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputl
     data = int_vec_init(TRUSTED_CHK_MAX_BUF_SIZE);
     asmpt_data = int_vec_init(64);
     confirm = confirm_results;
+    lenient_cidx = infer_cidx;
 }
 
 bool parse_increment(void) {
@@ -192,6 +194,11 @@ bool parse_increment(void) {
     while (confirm_item || signature_trace_get_next(&confirm_item)) {
 
         struct sig_obligation* item = confirm_item;
+        if (lenient_cidx && item->cidx == 0) {
+            snprintf(trusted_utils_msgstr, 512, "Assuming CIDX %i", nb_read_cls);
+            trusted_utils_log(trusted_utils_msgstr);
+            item->cidx = nb_read_cls;
+        }
         if (nb_read_cls < item->cidx) {
             return true; // not relevant yet, but keep item for next call
         }

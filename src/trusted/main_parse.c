@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     FILE* source = fopen(fifo_parsed_formula, "w");
     FILE* f_inputlog = 0;
     if (inputlog) f_inputlog = fopen(inputlog, "w");
-    tp_init(formula_input, source, false, f_inputlog);
+    tp_init(formula_input, source, false, false, f_inputlog);
     bool ok = tp_parse();
     if (!ok) abort();
     return 0;

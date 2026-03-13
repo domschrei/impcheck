@@ -4,6 +4,6 @@
 #include <stdbool.h>        // for bool
 #include <stdio.h>          // for FILE
 
-void tp_init(const char* filename, FILE* out, bool confirm_results, FILE* inputlog);
+void tp_init(const char* filename, FILE* out, bool confirm_results, bool infer_cidx, FILE* inputlog);
 bool tp_parse(void);
 void tp_end(void);

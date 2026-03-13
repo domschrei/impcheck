@@ -75,6 +75,12 @@ void* trusted_utils_calloc(u64 nb_objs, u64 size_per_obj) {
     return res;
 }
 
+bool trusted_utils_peek_eof(FILE* file) {
+    int res = UNLOCKED_IO(fgetc)(file);
+    if (res == EOF) return true;
+    ungetc(res, file);
+    return false;
+}
 bool trusted_utils_read_bool(FILE* file) {
     int res = UNLOCKED_IO(fgetc)(file);
     if (res == EOF) trusted_utils_exit_eof();

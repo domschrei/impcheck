@@ -211,7 +211,8 @@ int tc_run(bool check_model, bool lenient) {
             break;
 
         } else {
-            trusted_utils_log_err("Invalid directive!");
+            snprintf(trusted_utils_msgstr, 512, "Invalid directive %i (\"%c\")!", c, c);
+            trusted_utils_log_err(trusted_utils_msgstr);
             break;
         }
 

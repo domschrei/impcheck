@@ -51,8 +51,8 @@ void signature_trace_init(const char* path) {
 }
 
 bool signature_trace_get_next(struct sig_obligation** ptr_out) {
+    if (!sigtrace_in || trusted_utils_peek_eof(sigtrace_in)) return false;
     *ptr_out = &item_out;
-    if (!sigtrace_in) return false;
 
     char sig_str[2*SIG_SIZE_BYTES+1];
     char c = '\0';
